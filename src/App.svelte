@@ -108,7 +108,7 @@
 	
 	function startVisualizerLoop() {
 		function update() {
-			if (!isPlaying) {
+			if (!$isPlaying) {
 				waveformLeft.set(new Float32Array(2048));
 				waveformRight.set(new Float32Array(2048));
 				levelLeft.set(0);
@@ -178,6 +178,9 @@
 
 	function setCarrier(type: CarrierType) {
 		toggleCarrier(type);
+		if (type === 'sample' && !$sampleAudioBuffer) {
+			loadSample($selectedSampleId);
+		}
 		if ($isPlaying) updateEngineConfig();
 	}
 
