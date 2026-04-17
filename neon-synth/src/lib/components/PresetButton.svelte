@@ -54,7 +54,7 @@
 		colorClasses[color],
 		className
 	)}
-	on:click={onClick}
+	onclick={onClick}
 	disabled={disabled}
 	type="button"
 >
