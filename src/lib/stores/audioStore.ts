@@ -36,10 +36,20 @@ export const rateValue = writable<number>(2); // Hz
 
 // Carrier settings
 export type CarrierType = 'sine' | 'square' | 'sawtooth' | 'triangle' | 'white-noise' | 'pink' | 'brown' | 'bandlimited' | 'sample';
-export const carrierType = writable<CarrierType>('sine');
+export const activeCarriers = writable<CarrierType[]>(['sine']);
 export const carrierFreq = writable<number>(440);
 export const selectedSampleId = writable<string>('kick-subwoofer');
 export const sampleAudioBuffer = writable<AudioBuffer | null>(null);
+
+export function toggleCarrier(type: CarrierType) {
+	activeCarriers.update(list => {
+		if (list.includes(type)) {
+			const next = list.filter(c => c !== type);
+			return next.length > 0 ? next : list;
+		}
+		return [...list, type];
+	});
+}
 
 // Envelope settings (AD)
 export const attackTime = writable<number>(0.01); // seconds
@@ -85,7 +95,7 @@ export function resetParams() {
 	pattern.set('pure');
 	ratePreset.set('emdr');
 	rateValue.set(2);
-	carrierType.set('sine');
+	activeCarriers.set(['sine']);
 	carrierFreq.set(440);
 	selectedSampleId.set('kick-subwoofer');
 	sampleAudioBuffer.set(null);

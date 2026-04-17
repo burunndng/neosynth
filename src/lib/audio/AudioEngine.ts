@@ -2,12 +2,12 @@ import type { PatternType, CarrierType } from '$lib/stores/audioStore';
 
 export interface AudioEngineConfig {
   pattern: PatternType;
-  rate: number; // Hz
-  carrierType: CarrierType;
+  rate: number;
+  carrierTypes: CarrierType[];
   carrierFreq: number;
-  attack: number; // seconds
-  decay: number; // seconds
-  dutyCycle: number; // 0-1
+  attack: number;
+  decay: number;
+  dutyCycle: number;
   leftGain: number;
   rightGain: number;
   panMode: 'hard' | 'smooth';
@@ -38,7 +38,7 @@ export class AudioEngine {
   private config: AudioEngineConfig = {
     pattern: 'pure',
     rate: 2,
-    carrierType: 'sine',
+    carrierTypes: ['sine'],
     carrierFreq: 440,
     attack: 0.01,
     decay: 0.1,
@@ -150,9 +150,10 @@ export class AudioEngine {
   private createPulse(time: number): void {
     if (!this.ctx) return;
     
-    const { pattern, rate, carrierType, carrierFreq, attack, decay, dutyCycle, leftGain, rightGain, panMode } = this.config;
+    const { pattern, rate, carrierTypes, carrierFreq, attack, decay, dutyCycle, leftGain, rightGain } = this.config;
     
-    // Determine which ear(s) get this pulse based on pattern
+    if (carrierTypes.length === 0) return;
+    
     const pulseDuration = 1 / rate;
     const sustainTime = pulseDuration * dutyCycle - attack - decay;
     
@@ -161,55 +162,53 @@ export class AudioEngine {
     
     switch (pattern) {
       case 'pure':
-        // Alternate L, R, L, R...
         leftActive = this.pulseIndex % 2 === 0;
         rightActive = this.pulseIndex % 2 === 1;
         break;
       case 'mirrored':
-        // Both ears together
         leftActive = true;
         rightActive = true;
         break;
       case 'asymmetric':
-        // Different rates per ear (simplified: alternate with offset)
         leftActive = this.pulseIndex % 3 !== 2;
         rightActive = this.pulseIndex % 3 !== 0;
         break;
       case 'clustered':
-        // Bursts of 3 pulses same side, then switch
         const cluster = Math.floor(this.pulseIndex / 3);
         leftActive = cluster % 2 === 0;
         rightActive = cluster % 2 === 1;
         break;
       case 'randomized':
-        // Random selection
         leftActive = Math.random() > 0.5;
         rightActive = Math.random() > 0.5;
         break;
     }
     
-    // Create carrier for this pulse
-    const carrier = this.createCarrier(carrierType, carrierFreq, time);
-    if (!carrier) return;
+    const perCarrierGain = 1 / carrierTypes.length;
     
-    this.carrierNodes.push(carrier);
-    
-    // Create gain nodes for envelope
     const leftGainNode = this.ctx.createGain();
     const rightGainNode = this.ctx.createGain();
-    
     leftGainNode.gain.value = 0;
     rightGainNode.gain.value = 0;
     
-    // Route carrier to both sides (gated by envelope)
-    carrier.connect(leftGainNode);
-    carrier.connect(rightGainNode);
+    const createdNodes: AudioNode[] = [];
     
-    // Apply gains
-    leftGainNode.gain.value = leftActive ? leftGain : 0;
-    rightGainNode.gain.value = rightActive ? rightGain : 0;
+    for (const carrierType of carrierTypes) {
+      const carrier = this.createCarrier(carrierType, carrierFreq, time);
+      if (!carrier) continue;
+      
+      this.carrierNodes.push(carrier);
+      createdNodes.push(carrier);
+      
+      const carrierGain = this.ctx.createGain();
+      carrierGain.gain.value = perCarrierGain;
+      carrier.connect(carrierGain);
+      carrierGain.connect(leftGainNode);
+      carrierGain.connect(rightGainNode);
+    }
     
-    // Envelope scheduling (click-free)
+    if (createdNodes.length === 0) return;
+    
     if (leftActive) {
       leftGainNode.gain.setValueAtTime(0, time);
       leftGainNode.gain.linearRampToValueAtTime(leftGain, time + attack);
@@ -224,18 +223,18 @@ export class AudioEngine {
       rightGainNode.gain.linearRampToValueAtTime(0, time + attack + Math.max(0, sustainTime) + decay);
     }
     
-    // Connect to merger
     leftGainNode.connect(this.merger!, 0, 0);
     rightGainNode.connect(this.merger!, 0, 1);
     
-    // Cleanup after pulse
     const cleanupTime = time + pulseDuration + 0.1;
     setTimeout(() => {
-      carrier.disconnect();
+      createdNodes.forEach(n => n.disconnect());
       leftGainNode.disconnect();
       rightGainNode.disconnect();
-      this.carrierNodes = this.carrierNodes.filter(n => n !== carrier);
-    }, (cleanupTime - this.ctx.currentTime) * 1000);
+      createdNodes.forEach(n => {
+        this.carrierNodes = this.carrierNodes.filter(c => c !== n);
+      });
+    }, (cleanupTime - this.ctx!.currentTime) * 1000);
   }
 
   private createCarrier(type: CarrierType, freq: number, time: number): AudioNode | null {
@@ -351,8 +350,8 @@ export class AudioEngine {
     
     this.analyserLeft.getFloatTimeDomainData(waveL);
     this.analyserRight.getFloatTimeDomainData(waveR);
+    this.analyserLeft.getFloatFrequencyData(freqData);
     
-    // Calculate RMS levels
     let sumL = 0, sumR = 0;
     for (let i = 0; i < 2048; i++) {
       sumL += waveL[i] * waveL[i];
@@ -382,10 +381,15 @@ export class AudioEngine {
     merger.connect(masterNode);
     masterNode.connect(offlineCtx.destination);
     
-    const { rate, pattern, carrierType, carrierFreq, attack, decay, dutyCycle, leftGain, rightGain } = this.config;
+    const { rate, pattern, carrierTypes, carrierFreq, attack, decay, dutyCycle, leftGain, rightGain } = this.config;
+    if (carrierTypes.length === 0) {
+      const renderedBuffer = await offlineCtx.startRendering();
+      return this.bufferToWav(renderedBuffer, bitDepth);
+    }
     const totalPulses = Math.floor(duration * rate);
     let pulseIdx = 0;
     let time = 0.1;
+    const perCarrierGain = 1 / carrierTypes.length;
     
     for (let i = 0; i < totalPulses; i++) {
       const pulseDuration = 1 / rate;
@@ -418,33 +422,37 @@ export class AudioEngine {
           break;
       }
       
-      const carrier = this.createOfflineCarrier(offlineCtx, carrierType, carrierFreq, time, pulseDuration);
-      if (carrier) {
-        const leftGainNode = offlineCtx.createGain();
-        const rightGainNode = offlineCtx.createGain();
-        leftGainNode.gain.value = 0;
-        rightGainNode.gain.value = 0;
-        
-        carrier.connect(leftGainNode);
-        carrier.connect(rightGainNode);
-        
-        if (leftActive) {
-          leftGainNode.gain.setValueAtTime(0, time);
-          leftGainNode.gain.linearRampToValueAtTime(leftGain, time + attack);
-          leftGainNode.gain.setValueAtTime(leftGain, time + attack + Math.max(0, sustainTime));
-          leftGainNode.gain.linearRampToValueAtTime(0, time + attack + Math.max(0, sustainTime) + decay);
-        }
-        
-        if (rightActive) {
-          rightGainNode.gain.setValueAtTime(0, time);
-          rightGainNode.gain.linearRampToValueAtTime(rightGain, time + attack);
-          rightGainNode.gain.setValueAtTime(rightGain, time + attack + Math.max(0, sustainTime));
-          rightGainNode.gain.linearRampToValueAtTime(0, time + attack + Math.max(0, sustainTime) + decay);
-        }
-        
-        leftGainNode.connect(merger, 0, 0);
-        rightGainNode.connect(merger, 0, 1);
+      const leftGainNode = offlineCtx.createGain();
+      const rightGainNode = offlineCtx.createGain();
+      leftGainNode.gain.value = 0;
+      rightGainNode.gain.value = 0;
+      
+      for (const ct of carrierTypes) {
+        const carrier = this.createOfflineCarrier(offlineCtx, ct, carrierFreq, time, pulseDuration);
+        if (!carrier) continue;
+        const carrierGain = offlineCtx.createGain();
+        carrierGain.gain.value = perCarrierGain;
+        carrier.connect(carrierGain);
+        carrierGain.connect(leftGainNode);
+        carrierGain.connect(rightGainNode);
       }
+      
+      if (leftActive) {
+        leftGainNode.gain.setValueAtTime(0, time);
+        leftGainNode.gain.linearRampToValueAtTime(leftGain, time + attack);
+        leftGainNode.gain.setValueAtTime(leftGain, time + attack + Math.max(0, sustainTime));
+        leftGainNode.gain.linearRampToValueAtTime(0, time + attack + Math.max(0, sustainTime) + decay);
+      }
+      
+      if (rightActive) {
+        rightGainNode.gain.setValueAtTime(0, time);
+        rightGainNode.gain.linearRampToValueAtTime(rightGain, time + attack);
+        rightGainNode.gain.setValueAtTime(rightGain, time + attack + Math.max(0, sustainTime));
+        rightGainNode.gain.linearRampToValueAtTime(0, time + attack + Math.max(0, sustainTime) + decay);
+      }
+      
+      leftGainNode.connect(merger, 0, 0);
+      rightGainNode.connect(merger, 0, 1);
       
       time += pulseDuration;
       pulseIdx++;

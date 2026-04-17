@@ -6,7 +6,7 @@
 		ratePreset,
 		rateValue,
 		currentRate,
-		carrierType,
+		activeCarriers,
 		carrierFreq,
 		attackTime,
 		decayTime,
@@ -26,6 +26,7 @@
 		soundLibrary,
 		selectedSampleId,
 		sampleAudioBuffer,
+		toggleCarrier,
 		type CarrierType
 	} from '$lib/stores/audioStore';
 	import Visualizer from '$lib/components/Visualizer.svelte';
@@ -112,12 +113,14 @@
 				waveformRight.set(new Float32Array(2048));
 				levelLeft.set(0);
 				levelRight.set(0);
+				spectrumData.set(new Float32Array(128));
 			} else {
 				const data = engine.getAnalyserData();
 				waveformLeft.set(data.waveformLeft);
 				waveformRight.set(data.waveformRight);
 				levelLeft.set(data.levelLeft);
 				levelRight.set(data.levelRight);
+				spectrumData.set(data.spectrum);
 			}
 			visualizerAnimationId = requestAnimationFrame(update);
 		}
@@ -141,7 +144,7 @@
 		engine.updateConfig({
 			pattern: $pattern,
 			rate: $currentRate,
-			carrierType: $carrierType,
+			carrierTypes: $activeCarriers,
 			carrierFreq: $carrierFreq,
 			attack: $attackTime,
 			decay: $decayTime,
@@ -173,8 +176,8 @@
 		if ($isPlaying) updateEngineConfig();
 	}
 
-	function setCarrier(value: string) {
-		carrierType.set(value as CarrierType);
+	function setCarrier(type: CarrierType) {
+		toggleCarrier(type);
 		if ($isPlaying) updateEngineConfig();
 	}
 
@@ -440,38 +443,73 @@
 			<section class="col-span-7 space-y-4">
 				<!-- Carrier Module -->
 				<div class="bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-6">
-					<div class="flex items-center justify-between mb-6">
+					<div class="flex items-center justify-between mb-4">
 						<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
 							<Activity class="w-4 h-4" />
-							Carrier Signal
+							Carrier Layers
 						</h2>
+						<span class="text-xs text-gray-500">Click to toggle • Combine multiple</span>
 					</div>
-					<div class="flex items-center gap-8">
-						<div class="flex-1">
-							<label class="block text-xs text-gray-500 mb-2">Type</label>
-							<select 
-								bind:value={$carrierType} 
-								onchange={(e) => setCarrier(e.target.value)}
-								class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-400 transition-colors"
-							>
-								<optgroup label="Waves">
-									<option value="sine">Sine Tone</option>
-									<option value="square">Square Wave</option>
-									<option value="sawtooth">Sawtooth Wave</option>
-									<option value="triangle">Triangle Wave</option>
-								</optgroup>
-								<optgroup label="Noise">
-									<option value="white-noise">White Noise</option>
-									<option value="pink">Pink Noise</option>
-									<option value="brown">Brown Noise</option>
-									<option value="bandlimited">Band-Limited Noise</option>
-								</optgroup>
-								<optgroup label="Samples">
-									<option value="sample">Sound Sample</option>
-								</optgroup>
-							</select>
+					
+					<div class="space-y-3">
+						<div>
+							<span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Waves</span>
+							<div class="flex flex-wrap gap-2 mt-1">
+								{#each ['sine', 'square', 'sawtooth', 'triangle'] as type}
+									<button
+										class={cn(
+											'px-3 py-1.5 rounded-lg border text-sm font-medium transition-all',
+											$activeCarriers.includes(type as CarrierType)
+												? 'border-cyan-400 bg-cyan-400/15 text-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.3)]'
+												: 'border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+										)}
+										onclick={() => setCarrier(type as CarrierType)}
+									>
+										{type === 'sine' ? 'Sine' : type === 'square' ? 'Square' : type === 'sawtooth' ? 'Saw' : 'Tri'}
+									</button>
+								{/each}
+							</div>
 						</div>
-						{#if $carrierType === 'sine' || $carrierType === 'square' || $carrierType === 'sawtooth' || $carrierType === 'triangle'}
+						
+						<div>
+							<span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Noise</span>
+							<div class="flex flex-wrap gap-2 mt-1">
+								{#each ['white-noise', 'pink', 'brown', 'bandlimited'] as type}
+									<button
+										class={cn(
+											'px-3 py-1.5 rounded-lg border text-sm font-medium transition-all',
+											$activeCarriers.includes(type as CarrierType)
+												? 'border-fuchsia-400 bg-fuchsia-400/15 text-fuchsia-300 shadow-[0_0_10px_rgba(232,121,249,0.3)]'
+												: 'border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+										)}
+										onclick={() => setCarrier(type as CarrierType)}
+									>
+										{type === 'white-noise' ? 'White' : type === 'pink' ? 'Pink' : type === 'brown' ? 'Brown' : 'B.Lim'}
+									</button>
+								{/each}
+							</div>
+						</div>
+						
+						<div>
+							<span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Sample</span>
+							<div class="flex flex-wrap gap-2 mt-1">
+								<button
+									class={cn(
+										'px-3 py-1.5 rounded-lg border text-sm font-medium transition-all',
+										$activeCarriers.includes('sample')
+											? 'border-emerald-400 bg-emerald-400/15 text-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.3)]'
+											: 'border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+									)}
+									onclick={() => setCarrier('sample')}
+								>
+									Sound Sample
+								</button>
+							</div>
+						</div>
+					</div>
+					
+					{#if $activeCarriers.some(c => ['sine', 'square', 'sawtooth', 'triangle'].includes(c))}
+						<div class="mt-4 pt-4 border-t border-gray-800 flex items-center gap-6">
 							<Knob
 								label="Frequency"
 								value={$carrierFreq}
@@ -483,8 +521,11 @@
 								color="cyan"
 								onInput={(v) => setCarrierFreq(v)}
 							/>
-						{/if}
-						{#if $carrierType === 'bandlimited'}
+						</div>
+					{/if}
+					
+					{#if $activeCarriers.includes('bandlimited')}
+						<div class="mt-4 pt-4 border-t border-gray-800 flex items-center gap-6">
 							<Knob
 								label="Cutoff"
 								value={$carrierFreq}
@@ -496,18 +537,19 @@
 								color="cyan"
 								onInput={(v) => setCarrierFreq(v)}
 							/>
-						{/if}
-					</div>
-					{#if $carrierType === 'sample'}
+						</div>
+					{/if}
+					
+					{#if $activeCarriers.includes('sample')}
 						<div class="mt-4 pt-4 border-t border-gray-800">
-							<label class="block text-xs text-gray-500 mb-2">Select Sound</label>
-							<div class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+							<span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Select Sound</span>
+							<div class="grid grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto">
 								{#each soundLibrary as entry}
 									<button
 										class={cn(
 											'text-left px-3 py-2 rounded-lg border transition-all text-sm',
 											$selectedSampleId === entry.id
-												? 'border-cyan-400 bg-cyan-400/10 text-cyan-300'
+												? 'border-emerald-400 bg-emerald-400/10 text-emerald-300'
 												: 'border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-600 hover:text-gray-300'
 										)}
 										onclick={() => loadSample(entry.id)}

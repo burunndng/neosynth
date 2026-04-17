@@ -99,9 +99,9 @@
 
 	<div
 		class={cn(
-			'relative rounded-full cursor-ew-resize transition-transform duration-100',
+			'relative rounded-full cursor-grab transition-transform duration-100',
 			sizeClasses[size],
-			dragging ? 'scale-105' : 'hover:scale-105',
+			dragging ? 'scale-105 cursor-grabbing' : 'hover:scale-105',
 			'bg-gradient-to-br from-gray-800 to-gray-900',
 			'ring-2 ring-gray-700 hover:ring-gray-600',
 			'shadow-lg shadow-black/50'
@@ -143,7 +143,7 @@
 				stroke-width="8"
 				stroke-linecap="round"
 				stroke-dasharray="198"
-				stroke-dashoffset={198 - (getPercentage() * 198) / 270 * 100 / 100}
+				stroke-dashoffset={198 * (1 - getPercentage() / 100)}
 				transform="rotate(135 50 50)"
 				class="transition-all duration-75"
 			/>
