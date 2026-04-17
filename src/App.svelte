@@ -173,16 +173,22 @@
 		const input = event.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file || !engine) return;
-		
+
 		const ctx = new AudioContext();
 		const reader = new FileReader();
-		
+
 		reader.onload = async () => {
 			try {
 				const arrayBuffer = reader.result as ArrayBuffer;
 				const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+				console.log('Audio decoded successfully', { audioBuffer });
+				console.log('userAudioBuffer store:', userAudioBuffer, typeof userAudioBuffer?.set);
+				if (!userAudioBuffer || typeof userAudioBuffer.set !== 'function') {
+					console.error('userAudioBuffer is not a valid store', userAudioBuffer);
+					return;
+				}
 				userAudioBuffer.set(audioBuffer);
-				
+
 				if ($isPlaying) {
 					updateEngineConfig();
 				}
@@ -191,7 +197,7 @@
 			}
 			ctx.close();
 		};
-		
+
 		reader.readAsArrayBuffer(file);
 		input.value = '';
 	}
