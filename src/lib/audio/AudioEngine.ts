@@ -25,8 +25,8 @@ export class AudioEngine {
   private splitter: ChannelSplitterNode | null = null;
   private merger: ChannelMergerNode | null = null;
   
-  private carrierNodes: AudioNode[] = [];
-  private pulseGains: GainNode[] = [];
+private carrierNodesCleanup: Map<AudioNode, number> = new Map();
+	private pulseGains: GainNode[] = [];
   private userSource: AudioBufferSourceNode | null = null;
   private userGainNode: GainNode | null = null;
   
@@ -55,7 +55,7 @@ export class AudioEngine {
   async init(): Promise<void> {
     if (this.ctx) return;
     
-    this.ctx = new AudioContext({ sampleRate: 44100 });
+    this.ctx = new AudioContext();
     await this.ctx.resume();
     
     // Create master chain
@@ -108,10 +108,10 @@ export class AudioEngine {
     }
     
     // Stop all carrier nodes
-    this.carrierNodes.forEach(node => {
+    this.carrierNodesCleanup.forEach((_, node) => {
       try { node.disconnect(); } catch {}
     });
-    this.carrierNodes = [];
+    this.carrierNodesCleanup.clear();
     
     // Stop user audio
     if (this.userSource) {
@@ -192,13 +192,15 @@ export class AudioEngine {
     rightGainNode.gain.value = 0;
     
     const createdNodes: AudioNode[] = [];
+    const now = this.ctx.currentTime;
+    const cleanupTime = time + pulseDuration + 0.1;
     
     for (const carrierType of carrierTypes) {
       const carrier = this.createCarrier(carrierType, carrierFreq, time);
       if (!carrier) continue;
       
-      this.carrierNodes.push(carrier);
       createdNodes.push(carrier);
+      this.carrierNodesCleanup.set(carrier, (cleanupTime - now) * 1000);
       
       const carrierGain = this.ctx.createGain();
       carrierGain.gain.value = perCarrierGain;
@@ -226,14 +228,11 @@ export class AudioEngine {
     leftGainNode.connect(this.merger!, 0, 0);
     rightGainNode.connect(this.merger!, 0, 1);
     
-    const cleanupTime = time + pulseDuration + 0.1;
     setTimeout(() => {
       createdNodes.forEach(n => n.disconnect());
       leftGainNode.disconnect();
       rightGainNode.disconnect();
-      createdNodes.forEach(n => {
-        this.carrierNodes = this.carrierNodes.filter(c => c !== n);
-      });
+      createdNodes.forEach(n => this.carrierNodesCleanup.delete(n));
     }, (cleanupTime - this.ctx!.currentTime) * 1000);
   }
 
@@ -380,6 +379,17 @@ export class AudioEngine {
     const merger = offlineCtx.createChannelMerger(2);
     merger.connect(masterNode);
     masterNode.connect(offlineCtx.destination);
+    
+    if (this.config.userAudioBuffer) {
+      const userSource = offlineCtx.createBufferSource();
+      userSource.buffer = this.config.userAudioBuffer;
+      userSource.loop = true;
+      const userGain = offlineCtx.createGain();
+      userGain.gain.value = this.config.userAudioGain;
+      userSource.connect(userGain);
+      userGain.connect(merger);
+      userSource.start(0);
+    }
     
     const { rate, pattern, carrierTypes, carrierFreq, attack, decay, dutyCycle, leftGain, rightGain } = this.config;
     if (carrierTypes.length === 0) {

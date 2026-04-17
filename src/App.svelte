@@ -147,11 +147,17 @@
 	}
 	
 	async function handleInitialize() {
+		console.log('INIT CLICK', isInitialized);
 		if (!isInitialized) {
-			await engine.init();
-			isInitialized = true;
-			showSafetyModal = true;
-			startVisualizerLoop();
+			try {
+				await engine.init();
+				isInitialized = true;
+				showSafetyModal = true;
+				startVisualizerLoop();
+				console.log('INIT DONE');
+			} catch(e) {
+				console.error('INIT FAILED', e);
+			}
 		}
 	}
 	
