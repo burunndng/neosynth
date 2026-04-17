@@ -8,6 +8,7 @@
 		levelRight,
 		isPlaying
 	} from '$lib/stores/audioStore';
+	import { onDestroy } from 'svelte';
 
 	interface Props {
 		canvasId: string;
@@ -28,6 +29,7 @@
 	}: Props = $props();
 
 	let canvas: HTMLCanvasElement;
+	let animFrameId: number;
 
 	const colorMap = {
 		cyan: { primary: '#22d3ee', secondary: '#3b82f6', glow: 'rgba(34, 211, 238, 0.5)' },
@@ -49,7 +51,7 @@
 
 		if (type === 'oscilloscope') {
 			const data = color === 'magenta' ? $waveformRight : $waveformLeft;
-			if (!data || data.length === 0) return;
+			if (!data || data.length === 0) { animFrameId = requestAnimationFrame(draw); return; }
 
 			ctx.lineWidth = 2;
 			ctx.strokeStyle = colors.primary;
@@ -76,7 +78,7 @@
 			ctx.shadowBlur = 0;
 		} else if (type === 'spectrum') {
 			const data = $spectrumData;
-			if (!data || data.length === 0) return;
+			if (!data || data.length === 0) { animFrameId = requestAnimationFrame(draw); return; }
 
 			const barWidth = (w / data.length) * 2.5;
 			let x = 0;
@@ -118,18 +120,19 @@
 			ctx.fillStyle = '#ffffff';
 			ctx.fillRect(0, h * (1 - pct) - 2, w, 2);
 		}
+
+		animFrameId = requestAnimationFrame(draw);
 	}
 
 	$effect(() => {
 		if (canvas) {
 			canvas.width = width;
 			canvas.height = height;
+			animFrameId = requestAnimationFrame(draw);
 		}
-	});
-
-	$effect(() => {
-		const unsub = $isPlaying;
-		draw();
+		return () => {
+			if (animFrameId) cancelAnimationFrame(animFrameId);
+		};
 	});
 </script>
 

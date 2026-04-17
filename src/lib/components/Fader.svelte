@@ -31,9 +31,14 @@
 		showValue = true
 	}: Props = $props();
 
+	let localValue = $state(value);
 	let dragging = $state(false);
 	let startPos = 0;
 	let startValue = 0;
+
+	$effect(() => {
+		if (!dragging) localValue = value;
+	});
 
 	const colorClasses = {
 		cyan: 'from-cyan-400 to-blue-500 bg-cyan-500/20 border-cyan-500/50',
@@ -52,13 +57,13 @@
 	}
 
 	function getPercentage(): number {
-		return ((value - min) / (max - min)) * 100;
+		return ((localValue - min) / (max - min)) * 100;
 	}
 
 	function handlePointerDown(e: PointerEvent) {
 		dragging = true;
 		startPos = vertical ? e.clientY : e.clientX;
-		startValue = value;
+		startValue = localValue;
 		(e.target as HTMLElement).setPointerCapture(e.pointerId);
 	}
 
@@ -68,19 +73,19 @@
 		const range = max - min;
 		const sensitivity = 0.5;
 		const newValue = normalizeValue(startValue + (delta / 100) * range * sensitivity);
-		value = Math.round(newValue * 100) / 100;
-		onInput?.(value);
+		localValue = Math.round(newValue * 100) / 100;
+		onInput?.(localValue);
 	}
 
 	function handlePointerUp(e: PointerEvent) {
 		dragging = false;
 		(e.target as HTMLElement).releasePointerCapture(e.pointerId);
-		onChange?.(value);
+		onChange?.(localValue);
 	}
 
 	function handleDoubleClick() {
-		value = min;
-		onChange?.(value);
+		localValue = min;
+		onChange?.(localValue);
 	}
 </script>
 
@@ -107,7 +112,7 @@
 		onpointercancel={handlePointerUp}
 		ondblclick={handleDoubleClick}
 		role="slider"
-		aria-valuenow={value}
+		aria-valuenow={localValue}
 		aria-valuemin={min}
 		aria-valuemax={max}
 		aria-label={label || 'Fader control'}
@@ -185,7 +190,7 @@
 
 	{#if showValue}
 		<span class="text-xs font-mono text-gray-300">
-			{value.toFixed(step < 1 ? 2 : 0)}{unit}
+			{localValue.toFixed(step < 1 ? 2 : 0)}{unit}
 		</span>
 	{/if}
 </div>

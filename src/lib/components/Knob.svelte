@@ -29,9 +29,14 @@
 		class: className = ''
 	}: Props = $props();
 
+	let localValue = $state(value);
 	let dragging = $state(false);
 	let startY = 0;
 	let startValue = 0;
+
+	$effect(() => {
+		if (!dragging) localValue = value;
+	});
 
 	const sizeClasses = {
 		sm: 'w-12 h-12',
@@ -57,7 +62,7 @@
 	function handlePointerDown(e: PointerEvent) {
 		dragging = true;
 		startY = e.clientY;
-		startValue = value;
+		startValue = localValue;
 		(e.target as HTMLElement).setPointerCapture(e.pointerId);
 	}
 
@@ -67,23 +72,23 @@
 		const range = max - min;
 		const sensitivity = 0.5;
 		const newValue = normalizeValue(startValue + (deltaY / 100) * range * sensitivity);
-		value = Math.round(newValue * 100) / 100;
-		onInput?.(value);
+		localValue = Math.round(newValue * 100) / 100;
+		onInput?.(localValue);
 	}
 
 	function handlePointerUp(e: PointerEvent) {
 		dragging = false;
 		(e.target as HTMLElement).releasePointerCapture(e.pointerId);
-		onChange?.(value);
+		onChange?.(localValue);
 	}
 
 	function handleDoubleClick() {
-		value = min;
-		onChange?.(value);
+		localValue = min;
+		onChange?.(localValue);
 	}
 
 	function getPercentage(): number {
-		return ((value - min) / (max - min)) * 100;
+		return ((localValue - min) / (max - min)) * 100;
 	}
 </script>
 
@@ -112,7 +117,7 @@
 		onpointercancel={handlePointerUp}
 		ondblclick={handleDoubleClick}
 		role="slider"
-		aria-valuenow={value}
+		aria-valuenow={localValue}
 		aria-valuemin={min}
 		aria-valuemax={max}
 		aria-label={label || 'Knob control'}
@@ -163,14 +168,14 @@
 				'flex items-center justify-center',
 				'shadow-inner'
 			)}
-			style="transform: rotate({getRotation(value)}deg)"
+			style="transform: rotate({getRotation(localValue)}deg)"
 		>
 			<!-- Indicator line -->
 			<div class="absolute top-1 w-1 h-3 bg-white rounded-full shadow-lg"></div>
 			
 			<!-- Value display -->
 			<span class="text-[10px] font-bold text-white drop-shadow-md">
-				{value.toFixed(step < 1 ? 2 : 0)}{unit}
+				{localValue.toFixed(step < 1 ? 2 : 0)}{unit}
 			</span>
 		</div>
 
