@@ -34,6 +34,7 @@
 	import Fader from '$lib/components/Fader.svelte';
 	import PresetButton from '$lib/components/PresetButton.svelte';
 	import { Play, Square, Upload, Download, Info, Music, Activity, Settings } from 'lucide-svelte';
+	import { onDestroy } from 'svelte';
 	
 	function cn(...classes: Array<string | undefined | null | false>): string {
 		return classes.filter(Boolean).join(' ');
