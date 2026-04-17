@@ -1,18 +1,25 @@
 ```
+# Build artifacts
+dist/
+build/
+*.js
+*.css
+*.map
+
 # Dependencies
 node_modules/
 
-# Build outputs
-dist/
-build/
-target/
+# Cache directories
+.cache/
+.npm/
+.yarn/
 
-# Environment variables
+# Environment
 .env
 .env.local
 .env.*
 
-# IDE specific
+# Editors
 .vscode/
 .idea/
 *.swp
@@ -21,32 +28,7 @@ target/
 # Logs
 *.log
 
-# Python related (if any Python in project)
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-venv/
-.venv/
-.egg-info/
-
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
-# Temporary files
-*.tmp
-*.temp
-
 # OS generated files
 .DS_Store
 Thumbs.db
-
-# SvelteKit specific (if applicable)
-.svelte-kit/
-.output/
-.vercel/
-netlify/
 ```

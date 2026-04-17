@@ -28,7 +28,7 @@
 	import Knob from '$lib/components/Knob.svelte';
 	import Fader from '$lib/components/Fader.svelte';
 	import PresetButton from '$lib/components/PresetButton.svelte';
-	import { Play, Square, Upload, Download, Info, AlertTriangle, Music } from 'lucide-svelte';
+	import { Play, Square, Upload, Download, Info, AlertTriangle, Music, Activity } from 'lucide-svelte';
 	
 	function cn(...classes: Array<string | undefined | null | false>): string {
 		return classes.filter(Boolean).join(' ');
