@@ -324,24 +324,22 @@
 	});
 </script>
 
-<svelte:window onclick={handleInitialize} />
-
 <div class="min-h-screen bg-[var(--ns-bg-deep)] text-[var(--ns-text-primary)]">
 	{#if !isInitialized}
-		<div class="fixed inset-0 flex items-center justify-center z-50" style="background: radial-gradient(ellipse at center, #0d0d18 0%, var(--ns-bg-deep) 70%);">
+		<button class="fixed inset-0 w-full h-full border-none cursor-pointer flex items-center justify-center z-50" style="background: radial-gradient(ellipse at center, #0d0d18 0%, var(--ns-bg-deep) 70%);" onclick={handleInitialize}>
 			<div class="text-center space-y-6">
 				<div class="space-y-2">
-					<h1 class="text-6xl font-bold bg-gradient-to-r from-[var(--ns-accent-primary)] via-[var(--ns-accent-secondary)] to-[var(--ns-accent-primary)] bg-clip-text text-transparent animate-pulse">
+					<h1 class="text-6xl font-bold bg-gradient-to-r from-cyan-400 via-purple-500 to-cyan-400 bg-clip-text text-transparent animate-pulse">
 						NEONSYNTH
 					</h1>
-					<p style="color: var(--ns-text-secondary);" class="text-sm uppercase tracking-widest">Bilateral Isochronic Audio Synthesizer</p>
+					<p style="color: #9ca3af;" class="text-sm uppercase tracking-widest">Bilateral Isochronic Audio Synthesizer</p>
 				</div>
-				<div class="w-48 h-0.5 mx-auto rounded-full overflow-hidden" style="background: var(--ns-bg-surface);">
-					<div class="h-full bg-gradient-to-r from-[var(--ns-accent-primary)] to-[var(--ns-accent-secondary)] animate-pulse" style="width: 100%"></div>
+				<div class="w-48 h-0.5 mx-auto rounded-full overflow-hidden" style="background: #14151f;">
+					<div class="h-full bg-gradient-to-r from-cyan-400 to-purple-500 animate-pulse" style="width: 100%"></div>
 				</div>
-				<p style="color: var(--ns-text-dim);" class="text-xs uppercase tracking-wider">Click anywhere to initialize</p>
+				<p style="color: #4b5563;" class="text-xs uppercase tracking-wider">Click anywhere to initialize</p>
 			</div>
-		</div>
+		</button>
 	{/if}
 	
 	{#if showSafetyModal}
@@ -384,4 +382,8 @@
 			</div>
 		</div>
 	</header>
+	
+	<div style="padding: 20px; background: cyan; color: black;">
+		isInitialized: {isInitialized} | showSafetyModal: {showSafetyModal}
+	</div>
 </div>
