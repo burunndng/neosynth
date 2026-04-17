@@ -138,7 +138,7 @@
 	}
 
 	function setRate(value: number) {
-		currentRate.set(value);
+		rateValue.set(value);
 		if ($isPlaying) updateEngineConfig();
 	}
 
