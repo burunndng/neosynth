@@ -22,7 +22,11 @@
 		waveformRight,
 		levelLeft,
 		levelRight,
-		spectrumData
+		spectrumData,
+		soundLibrary,
+		selectedSampleId,
+		sampleAudioBuffer,
+		type CarrierType
 	} from '$lib/stores/audioStore';
 	import Visualizer from '$lib/components/Visualizer.svelte';
 	import Knob from '$lib/components/Knob.svelte';
@@ -59,12 +63,38 @@
 	};
 	
 	// Carrier presets
-	const carrierPresets = {
-		sine: { label: 'Sine Tone' },
-		pink: { label: 'Pink Noise' },
-		brown: { label: 'Brown Noise' },
-		bandlimited: { label: 'Band-Limited Noise' }
+	const carrierPresets: Record<string, { label: string; group?: string }> = {
+		sine: { label: 'Sine Tone', group: 'Waves' },
+		square: { label: 'Square Wave', group: 'Waves' },
+		sawtooth: { label: 'Sawtooth Wave', group: 'Waves' },
+		triangle: { label: 'Triangle Wave', group: 'Waves' },
+		'white-noise': { label: 'White Noise', group: 'Noise' },
+		pink: { label: 'Pink Noise', group: 'Noise' },
+		brown: { label: 'Brown Noise', group: 'Noise' },
+		bandlimited: { label: 'Band-Limited Noise', group: 'Noise' },
+		sample: { label: 'Sound Sample', group: 'Samples' }
 	};
+
+	let isLoadingSample = $state(false);
+
+	async function loadSample(id: string) {
+		selectedSampleId.set(id);
+		isLoadingSample = true;
+		const entry = soundLibrary.find((s: { id: string; label: string; filename: string; description: string }) => s.id === id);
+		if (!entry) { isLoadingSample = false; return; }
+		try {
+			const response = await fetch(`/sounds/${entry.filename}`);
+			const arrayBuffer = await response.arrayBuffer();
+			const ctx = new AudioContext();
+			const buffer = await ctx.decodeAudioData(arrayBuffer);
+			sampleAudioBuffer.set(buffer);
+			ctx.close();
+			if ($isPlaying) updateEngineConfig();
+		} catch (e) {
+			console.error('Failed to load sample:', e);
+		}
+		isLoadingSample = false;
+	}
 	
 	async function handleInitialize() {
 		if (!isInitialized) {
@@ -118,7 +148,8 @@
 			dutyCycle: $dutyCycle,
 			leftGain: $leftGain,
 			rightGain: $rightGain,
-			masterGain: $masterGain
+			masterGain: $masterGain,
+			sampleBuffer: $sampleAudioBuffer
 		});
 	}
 	
@@ -143,7 +174,7 @@
 	}
 
 	function setCarrier(value: string) {
-		carrierType.set(value as any);
+		carrierType.set(value as CarrierType);
 		if ($isPlaying) updateEngineConfig();
 	}
 
@@ -417,18 +448,30 @@
 					</div>
 					<div class="flex items-center gap-8">
 						<div class="flex-1">
-							<label class="block text-xs text-gray-500 mb-2">Waveform</label>
+							<label class="block text-xs text-gray-500 mb-2">Type</label>
 							<select 
 								bind:value={$carrierType} 
-								onchange={(e) => setCarrier(e.target.value as any)}
+								onchange={(e) => setCarrier(e.target.value)}
 								class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-400 transition-colors"
 							>
-								{#each Object.entries(carrierPresets) as [key, preset]}
-									<option value={key}>{preset.label}</option>
-								{/each}
+								<optgroup label="Waves">
+									<option value="sine">Sine Tone</option>
+									<option value="square">Square Wave</option>
+									<option value="sawtooth">Sawtooth Wave</option>
+									<option value="triangle">Triangle Wave</option>
+								</optgroup>
+								<optgroup label="Noise">
+									<option value="white-noise">White Noise</option>
+									<option value="pink">Pink Noise</option>
+									<option value="brown">Brown Noise</option>
+									<option value="bandlimited">Band-Limited Noise</option>
+								</optgroup>
+								<optgroup label="Samples">
+									<option value="sample">Sound Sample</option>
+								</optgroup>
 							</select>
 						</div>
-						{#if $carrierType === 'sine'}
+						{#if $carrierType === 'sine' || $carrierType === 'square' || $carrierType === 'sawtooth' || $carrierType === 'triangle'}
 							<Knob
 								label="Frequency"
 								value={$carrierFreq}
@@ -441,7 +484,42 @@
 								onInput={(v) => setCarrierFreq(v)}
 							/>
 						{/if}
+						{#if $carrierType === 'bandlimited'}
+							<Knob
+								label="Cutoff"
+								value={$carrierFreq}
+								min={100}
+								max={5000}
+								step={50}
+								unit="Hz"
+								size="lg"
+								color="cyan"
+								onInput={(v) => setCarrierFreq(v)}
+							/>
+						{/if}
 					</div>
+					{#if $carrierType === 'sample'}
+						<div class="mt-4 pt-4 border-t border-gray-800">
+							<label class="block text-xs text-gray-500 mb-2">Select Sound</label>
+							<div class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+								{#each soundLibrary as entry}
+									<button
+										class={cn(
+											'text-left px-3 py-2 rounded-lg border transition-all text-sm',
+											$selectedSampleId === entry.id
+												? 'border-cyan-400 bg-cyan-400/10 text-cyan-300'
+												: 'border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+										)}
+										onclick={() => loadSample(entry.id)}
+										disabled={isLoadingSample}
+									>
+										<div class="font-medium">{entry.label}</div>
+										<div class="text-xs text-gray-500">{entry.description}</div>
+									</button>
+								{/each}
+							</div>
+						</div>
+					{/if}
 				</div>
 				
 				<!-- Envelope Module -->
