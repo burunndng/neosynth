@@ -125,7 +125,7 @@
 				'absolute bg-gray-800',
 				vertical ? 'left-1/2 -translate-x-1/2 w-2 h-full' : 'top-1/2 -translate-y-1/2 h-2 w-full'
 			)}
-		/>
+		></div>
 
 		<!-- Value indicator -->
 		<div
@@ -136,7 +136,7 @@
 					: `left-0 top-0 bottom-0 bg-gradient-to-r ${colorClasses[color].split(' ').slice(0, 3).join(' ')}`
 			)}
 			style={vertical ? `height: ${getPercentage()}%` : `width: ${getPercentage()}%`}
-		/>
+		></div>
 
 		<!-- Handle -->
 		<div
@@ -163,7 +163,7 @@
 					handleColorClasses[color],
 					vertical ? 'left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2' : 'top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 rotate-90'
 				)}
-			/>
+			></div>
 		</div>
 
 		<!-- Tick marks -->
@@ -173,7 +173,7 @@
 					<div
 						class="absolute w-4 h-px bg-gray-600 left-1/2 -translate-x-1/2"
 						style="bottom: {tick}%"
-					/>
+					></div>
 				{/each}
 			</div>
 		{:else}
@@ -182,7 +182,7 @@
 					<div
 						class="absolute h-4 w-px bg-gray-600 top-1/2 -translate-y-1/2"
 						style="left: {tick}%"
-					/>
+					></div>
 				{/each}
 			</div>
 		{/if}

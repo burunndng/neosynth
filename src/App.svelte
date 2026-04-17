@@ -375,6 +375,7 @@
   <h1 class="text-lg font-extrabold uppercase tracking-widest bg-gradient-to-r from-[var(--ns-accent-primary)] to-[var(--ns-accent-secondary)] bg-clip-text text-transparent">
     NEONSYNTH
   </h1>
-				</div>
 			</div>
-			</div>
+		</div>
+	</header>
+</div>
