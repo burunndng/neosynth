@@ -24,58 +24,61 @@
 	}: Props = $props();
 
 	const sizeClasses = {
-		sm: 'px-3 py-1.5 text-xs',
-		md: 'px-4 py-2 text-sm',
-		lg: 'px-6 py-3 text-base'
+		sm: 'px-3 py-1.5 text-[10px]',
+		md: 'px-4 py-2 text-xs',
+		lg: 'px-5 py-2.5 text-sm'
 	};
 
-	const colorClasses = {
-		cyan: active
-			? 'bg-cyan-500/20 border-cyan-400 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.3)]'
-			: 'bg-gray-800/50 border-gray-700 text-gray-400 hover:border-cyan-500/50 hover:text-cyan-400',
-		magenta: active
-			? 'bg-fuchsia-500/20 border-fuchsia-400 text-fuchsia-400 shadow-[0_0_15px_rgba(232,121,249,0.3)]'
-			: 'bg-gray-800/50 border-gray-700 text-gray-400 hover:border-fuchsia-500/50 hover:text-fuchsia-400',
-		green: active
-			? 'bg-emerald-500/20 border-emerald-400 text-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.3)]'
-			: 'bg-gray-800/50 border-gray-700 text-gray-400 hover:border-emerald-500/50 hover:text-emerald-400'
+	const colorValues = {
+		cyan: { primary: '#22d3ee', glow: 'rgba(34, 211, 238, 0.3)', bg15: 'rgba(34, 211, 238, 0.15)' },
+		magenta: { primary: '#e879f9', glow: 'rgba(232, 121, 249, 0.3)', bg15: 'rgba(232, 121, 249, 0.15)' },
+		green: { primary: '#34d399', glow: 'rgba(52, 211, 153, 0.3)', bg15: 'rgba(52, 211, 153, 0.15)' }
 	};
+
+	const cv = $derived(colorValues[color]);
 </script>
 
 <button
 	class={cn(
-		'relative flex items-center justify-center gap-2',
+		'relative flex items-center justify-center gap-1.5',
 		'rounded-lg border transition-all duration-200',
-		'font-medium uppercase tracking-wider',
-		'backdrop-blur-sm',
-		'disabled:opacity-50 disabled:cursor-not-allowed',
-		'hover:scale-105 active:scale-95',
+		'font-semibold uppercase tracking-wider',
+		'disabled:opacity-40 disabled:cursor-not-allowed',
+		'active:scale-95',
 		sizeClasses[size],
-		colorClasses[color],
 		className
 	)}
+	style="
+		background: {active ? cv.bg15 : 'var(--ns-bg-surface)'};
+		border-color: {active ? cv.primary : 'var(--ns-border)'};
+		color: {active ? cv.primary : 'var(--ns-text-secondary)'};
+		box-shadow: {active ? `0 0 12px ${cv.glow}, inset 0 0 12px ${cv.glow}` : 'none'};
+	"
 	onclick={onClick}
 	disabled={disabled}
 	type="button"
 >
-	{#if Icon}
-		<svelte:component this={Icon} class="w-4 h-4" />
+	{#if active}
+		<!-- Dot indicator -->
+		<span
+			class="w-1.5 h-1.5 rounded-full"
+			style="background: {cv.primary}; box-shadow: 0 0 4px {cv.glow};"
+		></span>
 	{/if}
+
+	{#if Icon}
+		<Icon class="w-3.5 h-3.5" />
+	{/if}
+
 	{#if label}
 		<span>{label}</span>
 	{/if}
 
 	{#if active}
+		<!-- Outer glow layer -->
 		<div
-			class={cn(
-				'absolute inset-0 rounded-lg opacity-30',
-				'bg-gradient-to-br',
-				color === 'cyan' ? 'from-cyan-400/20 to-blue-500/20' :
-				color === 'magenta' ? 'from-fuchsia-400/20 to-pink-500/20' :
-				'from-emerald-400/20 to-green-500/20',
-				'blur-md'
-			)}
-			style="z-index: -1"
-		/>
+			class="absolute inset-0 rounded-lg opacity-20 blur-md"
+			style="background: {cv.primary}; z-index: -1;"
+		></div>
 	{/if}
 </button>

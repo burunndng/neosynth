@@ -15,8 +15,8 @@ export const soundLibrary: SoundLibraryEntry[] = [
   { id: 'intercom-phone', label: 'Intercom Phone', filename: '555140__fmaudio__lifting-up-intercom-phone.wav', description: 'Electronic intercom tone' },
   { id: 'paper-reload', label: 'Paper Reload', filename: '613291__birdofthenorth__paper-reload.wav', description: 'Crisp paper texture' },
   { id: 'ouch', label: 'Ouch', filename: '649543__ajanhallinta__ouch.wav', description: 'Short impact sound' },
-  { id: 'player-hurt', label: 'Player Hurt', filename: '678594__redswan_studios__player-hurt-3.m4a', description: 'Game damage sound' },
-  { id: 'music-box', label: 'Music Box', filename: '731365__moodyfingers__hand-crank-music-box-cranking.flac', description: 'Hand-cranked music box' },
+  { id: 'player-hurt', label: 'Player Hurt', filename: '678594__redswan_studios__player-hurt-3.wav', description: 'Game damage sound' },
+  { id: 'music-box', label: 'Music Box', filename: '731365__moodyfingers__hand-crank-music-box-cranking.wav', description: 'Hand-cranked music box' },
   { id: 'bass-98', label: 'Bass 98', filename: '798639__cvltiv8r__cvlt-bass-98.wav', description: 'Deep bass tone' },
 ];
 
