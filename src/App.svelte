@@ -431,7 +431,7 @@
 							min="0.5"
 							max="30"
 							step="0.1"
-							bind:value={$currentRate}
+							bind:value={$rateValue}
 							oninput={(e) => setRate(parseFloat(e.target.value))}
 							class="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
 						/>
