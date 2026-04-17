@@ -1,5 +1,5 @@
 import { writable, derived } from 'svelte/store';
-import type { BilateralParams, PatternType, CarrierType, RatePreset, EnvelopeParams } from '../audio/AudioEngine';
+import type { PatternType, CarrierType, RatePreset } from './audioStore';
 
 // Default parameters
 export const defaultParams: BilateralParams = {
@@ -52,9 +52,14 @@ export const patternPresets: Record<PatternType, { label: string; description: s
 
 export const carrierPresets: Record<CarrierType, { label: string; description: string }> = {
   sine: { label: 'Sine Tone', description: 'Pure sinusoidal carrier' },
-  'pink-noise': { label: 'Pink Noise', description: 'Equal energy per octave' },
-  'brown-noise': { label: 'Brown Noise', description: 'Deeper, rumbling noise' },
-  'band-limited': { label: 'Band-Limited Noise', description: 'Filtered to specific frequency range' }
+  square: { label: 'Square Wave', description: 'Rich hollow/buzzy tone' },
+  sawtooth: { label: 'Sawtooth Wave', description: 'Bright, buzzy harmonic-rich tone' },
+  triangle: { label: 'Triangle Wave', description: 'Softer than sine, mellow tone' },
+  'white-noise': { label: 'White Noise', description: 'Full-spectrum hiss, equal energy per frequency' },
+  pink: { label: 'Pink Noise', description: 'Equal energy per octave' },
+  brown: { label: 'Brown Noise', description: 'Deeper, rumbling noise' },
+  bandlimited: { label: 'Band-Limited Noise', description: 'Filtered to specific frequency range' },
+  sample: { label: 'Sound Sample', description: 'Use a sound file as carrier' }
 };
 
 // Main store
