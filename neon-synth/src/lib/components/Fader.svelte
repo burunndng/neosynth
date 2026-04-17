@@ -128,8 +128,7 @@
 				'absolute transition-all duration-75',
 				vertical
 					? `bottom-0 left-0 right-0 bg-gradient-to-t ${colorClasses[color].split(' ').slice(0, 3).join(' ')}`
-					: `left-0 top-0 bottom-0 bg-gradient-to-r ${colorClasses[color].split(' ').slice(0, 3).join(' ')}`,
-				vertical ? `h-[${getPercentage()}%]` : `w-[${getPercentage()}%]`
+					: `left-0 top-0 bottom-0 bg-gradient-to-r ${colorClasses[color].split(' ').slice(0, 3).join(' ')}`
 			)}
 			style={vertical ? `height: ${getPercentage()}%` : `width: ${getPercentage()}%`}
 		/>

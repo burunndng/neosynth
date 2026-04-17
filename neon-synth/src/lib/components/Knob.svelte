@@ -166,7 +166,7 @@
 			style="transform: rotate({getRotation(value)}deg)"
 		>
 			<!-- Indicator line -->
-			<div class="absolute top-1 w-1 h-3 bg-white rounded-full shadow-lg" />
+			<div class="absolute top-1 w-1 h-3 bg-white rounded-full shadow-lg"></div>
 			
 			<!-- Value display -->
 			<span class="text-[10px] font-bold text-white drop-shadow-md">
@@ -184,7 +184,7 @@
 				'blur-md'
 			)}
 			style="z-index: -1"
-		/>
+		></div>
 	</div>
 
 	{#if unit && !label}

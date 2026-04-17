@@ -1,500 +1,479 @@
-/**
- * AudioEngine - Core audio processing for NeonSynth bilateral isochronic synthesizer
- * Handles real-time preview and offline rendering with Web Audio API
- */
+import type { PatternType, CarrierType } from '$lib/stores/audioStore';
 
-export type CarrierType = 'sine' | 'pink-noise' | 'brown-noise' | 'band-limited';
-export type PatternType = 'pure-alternation' | 'mirrored-overlap' | 'asymmetric' | 'clustered' | 'randomized';
-export type RatePreset = 'delta' | 'theta' | 'alpha' | 'beta' | 'emdr';
-
-export interface EnvelopeParams {
-  attack: number;    // seconds
-  decay: number;     // seconds
-  sustain: number;   // seconds (0 for AD envelope)
-  dutyCycle: number; // 0-1, pulse width
-}
-
-export interface BilateralParams {
+export interface AudioEngineConfig {
   pattern: PatternType;
-  rate: number;      // Hz (pulses per second per ear)
-  carrier: CarrierType;
-  carrierFreq: number; // Hz for tone carriers
-  envelope: EnvelopeParams;
-  leftGain: number;  // 0-1
-  rightGain: number; // 0-1
-  panSmooth: boolean; // use smooth panning vs hard L/R
-}
-
-export interface UploadedTrack {
-  buffer: AudioBuffer;
-  name: string;
-  gain: number;
+  rate: number; // Hz
+  carrierType: CarrierType;
+  carrierFreq: number;
+  attack: number; // seconds
+  decay: number; // seconds
+  dutyCycle: number; // 0-1
+  leftGain: number;
+  rightGain: number;
+  panMode: 'hard' | 'smooth';
+  masterGain: number;
+  userAudioBuffer: AudioBuffer | null;
+  userAudioGain: number;
 }
 
 export class AudioEngine {
-  private audioCtx: AudioContext | null = null;
-  private masterGain: GainNode | null = null;
-  private analyser: AnalyserNode | null = null;
-  private uploadedTrackSource: AudioBufferSourceNode | null = null;
-  private uploadedTrackGain: GainNode | null = null;
-  private bilateralNodes: {
-    carrier?: OscillatorNode | AudioNode;
-    splitter?: ChannelSplitterNode;
-    merger?: ChannelMergerNode;
-    panner?: StereoPannerNode;
-    leftGain?: GainNode;
-    rightGain?: GainNode;
-  } = {};
+  private ctx: AudioContext | null = null;
+  private masterNode: GainNode | null = null;
+  private analyserLeft: AnalyserNode | null = null;
+  private analyserRight: AnalyserNode | null = null;
+  private splitter: ChannelSplitterNode | null = null;
+  private merger: ChannelMergerNode | null = null;
   
-  private isPlaying: boolean = false;
-  private startTime: number = 0;
-  private scheduledPulses: Array<{ time: number; ear: 'left' | 'right'; gain: GainNode }> = [];
-  private params: BilateralParams = {
-    pattern: 'pure-alternation',
-    rate: 1.0,
-    carrier: 'sine',
+  private carrierNodes: AudioNode[] = [];
+  private pulseGains: GainNode[] = [];
+  private userSource: AudioBufferSourceNode | null = null;
+  private userGainNode: GainNode | null = null;
+  
+  private isPlaying = false;
+  private nextPulseTime = 0;
+  private pulseIndex = 0;
+  private schedulerTimer: number | null = null;
+  
+  private config: AudioEngineConfig = {
+    pattern: 'pure',
+    rate: 2,
+    carrierType: 'sine',
     carrierFreq: 440,
-    envelope: {
-      attack: 0.01,
-      decay: 0.1,
-      sustain: 0,
-      dutyCycle: 0.5
-    },
-    leftGain: 0.7,
-    rightGain: 0.7,
-    panSmooth: false
+    attack: 0.01,
+    decay: 0.1,
+    dutyCycle: 0.5,
+    leftGain: 1,
+    rightGain: 1,
+    panMode: 'hard',
+    masterGain: 0.8,
+    userAudioBuffer: null,
+    userAudioGain: 0.5
   };
 
-  async initialize(): Promise<void> {
-    if (!this.audioCtx) {
-      this.audioCtx = new AudioContext();
-      this.masterGain = this.audioCtx.createGain();
-      this.analyser = this.audioCtx.createAnalyser();
-      this.analyser.fftSize = 2048;
-      
-      this.masterGain.connect(this.analyser);
-      this.analyser.connect(this.audioCtx.destination);
-      
-      this.setupBilateralRouting();
+  async init(): Promise<void> {
+    if (this.ctx) return;
+    
+    this.ctx = new AudioContext({ sampleRate: 44100 });
+    await this.ctx.resume();
+    
+    // Create master chain
+    this.masterNode = this.ctx.createGain();
+    this.masterNode.gain.value = this.config.masterGain;
+    
+    this.analyserLeft = this.ctx.createAnalyser();
+    this.analyserLeft.fftSize = 4096;
+    
+    this.analyserRight = this.ctx.createAnalyser();
+    this.analyserRight.fftSize = 4096;
+    
+    this.splitter = this.ctx.createChannelSplitter(2);
+    this.merger = this.ctx.createChannelMerger(2);
+    
+    // Routing: merger -> master -> analyserL/R (parallel) -> destination
+    this.merger.connect(this.masterNode);
+    this.masterNode.connect(this.analyserLeft);
+    this.masterNode.connect(this.analyserRight);
+    this.masterNode.connect(this.ctx.destination);
+    
+    // Split for visualization
+    this.masterNode.connect(this.splitter);
+  }
+
+  async play(): Promise<void> {
+    if (!this.ctx) await this.init();
+    if (this.isPlaying) return;
+    
+    this.isPlaying = true;
+    this.nextPulseTime = this.ctx!.currentTime + 0.1;
+    this.pulseIndex = 0;
+    
+    // Start user audio if loaded
+    if (this.config.userAudioBuffer) {
+      this.startUserAudio();
     }
     
-    if (this.audioCtx.state === 'suspended') {
-      await this.audioCtx.resume();
+    // Start pulse scheduler
+    this.schedulePulses();
+    this.schedulerTimer = window.setInterval(() => this.schedulePulses(), 25);
+  }
+
+  stop(): void {
+    this.isPlaying = false;
+    
+    if (this.schedulerTimer) {
+      clearInterval(this.schedulerTimer);
+      this.schedulerTimer = null;
+    }
+    
+    // Stop all carrier nodes
+    this.carrierNodes.forEach(node => {
+      try { node.disconnect(); } catch {}
+    });
+    this.carrierNodes = [];
+    
+    // Stop user audio
+    if (this.userSource) {
+      try { this.userSource.stop(); } catch {}
+      this.userSource = null;
     }
   }
 
-  private setupBilateralRouting(): void {
-    if (!this.audioCtx || !this.masterGain) return;
-
-    // Create routing nodes
-    this.bilateralNodes.splitter = this.audioCtx.createChannelSplitter(2);
-    this.bilateralNodes.merger = this.audioCtx.createChannelMerger(2);
-    this.bilateralNodes.leftGain = this.audioCtx.createGain();
-    this.bilateralNodes.rightGain = this.audioCtx.createGain();
-    this.bilateralNodes.panner = this.audioCtx.createStereoPanner();
-
-    // Route: carrier -> panner/splitter -> L/R gains -> merger -> master
-    this.bilateralNodes.panner.connect(this.bilateralNodes.splitter);
-    this.bilateralNodes.splitter.connect(this.bilateralNodes.leftGain, 0);
-    this.bilateralNodes.splitter.connect(this.bilateralNodes.rightGain, 1);
-    this.bilateralNodes.leftGain.connect(this.bilateralNodes.merger, 0, 0);
-    this.bilateralNodes.rightGain.connect(this.bilateralNodes.merger, 0, 1);
-    this.bilateralNodes.merger.connect(this.masterGain);
-
-    // Setup uploaded track routing
-    this.uploadedTrackGain = this.audioCtx.createGain();
-    this.uploadedTrackGain.connect(this.masterGain);
+  private startUserAudio(): void {
+    if (!this.ctx || !this.config.userAudioBuffer) return;
+    
+    this.userSource = this.ctx.createBufferSource();
+    this.userSource.buffer = this.config.userAudioBuffer;
+    this.userSource.loop = true;
+    
+    this.userGainNode = this.ctx.createGain();
+    this.userGainNode.gain.value = this.config.userAudioGain;
+    
+    this.userSource.connect(this.userGainNode);
+    this.userGainNode.connect(this.merger!);
+    this.userSource.start();
   }
 
-  updateParams(params: Partial<BilateralParams>): void {
-    this.params = { ...this.params, ...params };
+  private schedulePulses(): void {
+    if (!this.ctx || !this.isPlaying) return;
     
-    if (params.envelope) {
-      this.params.envelope = { ...this.params.envelope, ...params.envelope };
-    }
-
-    // Update gain nodes in real-time
-    if (this.bilateralNodes.leftGain) {
-      this.bilateralNodes.leftGain.gain.setTargetAtTime(this.params.leftGain, this.audioCtx!.currentTime, 0.01);
-    }
-    if (this.bilateralNodes.rightGain) {
-      this.bilateralNodes.rightGain.gain.setTargetAtTime(this.params.rightGain, this.audioCtx!.currentTime, 0.01);
-    }
-    if (this.bilateralNodes.panner && this.params.panSmooth) {
-      // Smooth sinusoidal panning at bilateral rate
-      const now = this.audioCtx!.currentTime;
-      this.bilateralNodes.panner.pan.cancelScheduledValues(now);
-      this.bilateralNodes.panner.pan.setValueAtTime(0, now);
+    const lookahead = 0.1; // 100ms
+    const currentTime = this.ctx.currentTime;
+    
+    while (this.nextPulseTime < currentTime + lookahead) {
+      this.createPulse(this.nextPulseTime);
+      this.advancePulse();
     }
   }
 
-  async loadUploadedTrack(file: File): Promise<UploadedTrack> {
-    if (!this.audioCtx) await this.initialize();
+  private createPulse(time: number): void {
+    if (!this.ctx) return;
     
-    const arrayBuffer = await file.arrayBuffer();
-    const audioBuffer = await this.audioCtx!.decodeAudioData(arrayBuffer);
+    const { pattern, rate, carrierType, carrierFreq, attack, decay, dutyCycle, leftGain, rightGain, panMode } = this.config;
+    
+    // Determine which ear(s) get this pulse based on pattern
+    const pulseDuration = 1 / rate;
+    const sustainTime = pulseDuration * dutyCycle - attack - decay;
+    
+    let leftActive = false;
+    let rightActive = false;
+    
+    switch (pattern) {
+      case 'pure':
+        // Alternate L, R, L, R...
+        leftActive = this.pulseIndex % 2 === 0;
+        rightActive = this.pulseIndex % 2 === 1;
+        break;
+      case 'mirrored':
+        // Both ears together
+        leftActive = true;
+        rightActive = true;
+        break;
+      case 'asymmetric':
+        // Different rates per ear (simplified: alternate with offset)
+        leftActive = this.pulseIndex % 3 !== 2;
+        rightActive = this.pulseIndex % 3 !== 0;
+        break;
+      case 'clustered':
+        // Bursts of 3 pulses same side, then switch
+        const cluster = Math.floor(this.pulseIndex / 3);
+        leftActive = cluster % 2 === 0;
+        rightActive = cluster % 2 === 1;
+        break;
+      case 'randomized':
+        // Random selection
+        leftActive = Math.random() > 0.5;
+        rightActive = Math.random() > 0.5;
+        break;
+    }
+    
+    // Create carrier for this pulse
+    const carrier = this.createCarrier(carrierType, carrierFreq, time);
+    if (!carrier) return;
+    
+    this.carrierNodes.push(carrier);
+    
+    // Create gain nodes for envelope
+    const leftGainNode = this.ctx.createGain();
+    const rightGainNode = this.ctx.createGain();
+    
+    leftGainNode.gain.value = 0;
+    rightGainNode.gain.value = 0;
+    
+    // Route carrier to both sides (gated by envelope)
+    carrier.connect(leftGainNode);
+    carrier.connect(rightGainNode);
+    
+    // Apply gains
+    leftGainNode.gain.value = leftActive ? leftGain : 0;
+    rightGainNode.gain.value = rightActive ? rightGain : 0;
+    
+    // Envelope scheduling (click-free)
+    if (leftActive) {
+      leftGainNode.gain.setValueAtTime(0, time);
+      leftGainNode.gain.linearRampToValueAtTime(leftGain, time + attack);
+      leftGainNode.gain.setValueAtTime(leftGain, time + attack + Math.max(0, sustainTime));
+      leftGainNode.gain.linearRampToValueAtTime(0, time + attack + Math.max(0, sustainTime) + decay);
+    }
+    
+    if (rightActive) {
+      rightGainNode.gain.setValueAtTime(0, time);
+      rightGainNode.gain.linearRampToValueAtTime(rightGain, time + attack);
+      rightGainNode.gain.setValueAtTime(rightGain, time + attack + Math.max(0, sustainTime));
+      rightGainNode.gain.linearRampToValueAtTime(0, time + attack + Math.max(0, sustainTime) + decay);
+    }
+    
+    // Connect to merger
+    leftGainNode.connect(this.merger!, 0, 0);
+    rightGainNode.connect(this.merger!, 0, 1);
+    
+    // Cleanup after pulse
+    const cleanupTime = time + pulseDuration + 0.1;
+    setTimeout(() => {
+      carrier.disconnect();
+      leftGainNode.disconnect();
+      rightGainNode.disconnect();
+      this.carrierNodes = this.carrierNodes.filter(n => n !== carrier);
+    }, (cleanupTime - this.ctx.currentTime) * 1000);
+  }
+
+  private createCarrier(type: CarrierType, freq: number, time: number): AudioNode | null {
+    if (!this.ctx) return null;
+    
+    switch (type) {
+      case 'sine': {
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        osc.start(time);
+        osc.stop(time + 2); // Auto-stop after reasonable duration
+        return osc;
+      }
+      case 'pink':
+      case 'brown':
+      case 'bandlimited': {
+        // Create noise buffer
+        const bufferSize = this.ctx.sampleRate * 2; // 2 seconds
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          if (type === 'pink') {
+            // Simple pink noise approximation
+            data[i] = (white + (data[i-1] || 0) * 0.9) / 1.9;
+          } else if (type === 'brown') {
+            // Brown noise
+            const last = data[i-1] || 0;
+            data[i] = (last + (0.02 * white)) / 1.02;
+            data[i] *= 3; // Compensate for gain loss
+          } else {
+            // Bandlimited (lowpass filtered white)
+            data[i] = white;
+          }
+        }
+        
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        source.start(time);
+        source.stop(time + 2);
+        
+        if (type === 'bandlimited') {
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.value = Math.min(freq * 2, 20000);
+          source.connect(filter);
+          return filter;
+        }
+        
+        return source;
+      }
+      default:
+        return null;
+    }
+  }
+
+  private advancePulse(): void {
+    this.pulseIndex++;
+    const pulseDuration = 1 / this.config.rate;
+    this.nextPulseTime += pulseDuration;
+  }
+
+  updateConfig(config: Partial<AudioEngineConfig>): void {
+    Object.assign(this.config, config);
+    
+    // Update live params
+    if (config.masterGain !== undefined && this.masterNode) {
+      this.masterNode.gain.setTargetAtTime(config.masterGain, this.ctx!.currentTime, 0.01);
+    }
+    
+    if (config.userAudioGain !== undefined && this.userGainNode) {
+      this.userGainNode.gain.setTargetAtTime(config.userAudioGain, this.ctx!.currentTime, 0.01);
+    }
+    
+    // Restart user audio if buffer changed
+    if (config.userAudioBuffer && this.isPlaying && !this.userSource) {
+      this.startUserAudio();
+    }
+  }
+
+  getAnalyserData(): { 
+    waveformLeft: Float32Array; 
+    waveformRight: Float32Array; 
+    spectrum: Float32Array;
+    levelLeft: number;
+    levelRight: number;
+  } {
+    if (!this.analyserLeft || !this.analyserRight) {
+      return {
+        waveformLeft: new Float32Array(2048),
+        waveformRight: new Float32Array(2048),
+        spectrum: new Float32Array(128),
+        levelLeft: 0,
+        levelRight: 0
+      };
+    }
+    
+    const waveL = new Float32Array(2048);
+    const waveR = new Float32Array(2048);
+    const freqData = new Float32Array(128);
+    
+    this.analyserLeft.getFloatTimeDomainData(waveL);
+    this.analyserRight.getFloatTimeDomainData(waveR);
+    
+    // Calculate RMS levels
+    let sumL = 0, sumR = 0;
+    for (let i = 0; i < 2048; i++) {
+      sumL += waveL[i] * waveL[i];
+      sumR += waveR[i] * waveR[i];
+    }
+    const rmsL = Math.sqrt(sumL / 2048);
+    const rmsR = Math.sqrt(sumR / 2048);
     
     return {
-      buffer: audioBuffer,
-      name: file.name,
-      gain: 0.8
+      waveformLeft: waveL,
+      waveformRight: waveR,
+      spectrum: freqData,
+      levelLeft: rmsL,
+      levelRight: rmsR
     };
   }
 
-  playUploadedTrack(track: UploadedTrack): void {
-    if (!this.audioCtx) return;
+  async renderOffline(duration: number, bitDepth: 16 | 24): Promise<Blob> {
+    if (!this.ctx) await this.init();
     
-    // Stop existing
-    if (this.uploadedTrackSource) {
-      this.uploadedTrackSource.stop();
-      this.uploadedTrackSource.disconnect();
-    }
-
-    this.uploadedTrackSource = this.audioCtx.createBufferSource();
-    this.uploadedTrackSource.buffer = track.buffer;
-    this.uploadedTrackSource.loop = true;
+    const offlineCtx = new OfflineAudioContext(2, duration * 44100, 44100);
     
-    if (this.uploadedTrackGain) {
-      this.uploadedTrackGain.gain.value = track.gain;
-    }
+    // Recreate signal chain in offline context
+    const masterNode = offlineCtx.createGain();
+    masterNode.gain.value = this.config.masterGain;
     
-    this.uploadedTrackSource.connect(this.uploadedTrackGain!);
-    this.uploadedTrackSource.start();
-  }
-
-  startBilateral(): void {
-    if (!this.audioCtx || this.isPlaying) return;
-
-    this.startTime = this.audioCtx.currentTime + 0.1; // Small lookahead
-    this.isPlaying = true;
-
-    // Create carrier
-    if (this.params.carrier === 'sine') {
-      const osc = this.audioCtx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = this.params.carrierFreq;
-      osc.connect(this.bilateralNodes.panner!);
-      osc.start(this.startTime);
-      this.bilateralNodes.carrier = osc;
-    } else {
-      // Noise carrier
-      const noiseBuffer = this.createNoiseBuffer(this.params.carrier);
-      const noiseSource = this.audioCtx.createBufferSource();
-      noiseSource.buffer = noiseBuffer;
-      noiseSource.loop = true;
-      noiseSource.connect(this.bilateralNodes.panner!);
-      noiseSource.start(this.startTime);
-      this.bilateralNodes.carrier = noiseSource;
-    }
-
-    // Schedule pulses
-    this.schedulePulses(this.startTime);
-  }
-
-  private createNoiseBuffer(type: CarrierType): AudioBuffer {
-    const sampleRate = this.audioCtx!.sampleRate;
-    const duration = 2.0; // 2 seconds looped
-    const length = sampleRate * duration;
-    const buffer = this.audioCtx!.createBuffer(1, length, sampleRate);
-    const data = buffer.getChannelData(0);
-
-    switch (type) {
-      case 'pink-noise':
-        this.generatePinkNoise(data);
-        break;
-      case 'brown-noise':
-        this.generateBrownNoise(data);
-        break;
-      case 'band-limited':
-        this.generateBandLimitedNoise(data, 200, 2000);
-        break;
-      default:
-        this.generateWhiteNoise(data);
-    }
-
-    return buffer;
-  }
-
-  private generateWhiteNoise(data: Float32Array): void {
-    for (let i = 0; i < data.length; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
-  }
-
-  private generatePinkNoise(data: Float32Array): void {
-    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-    for (let i = 0; i < data.length; i++) {
-      const white = Math.random() * 2 - 1;
-      b0 = 0.99886 * b0 + white * 0.0555179;
-      b1 = 0.99332 * b1 + white * 0.0750759;
-      b2 = 0.96900 * b2 + white * 0.1538520;
-      b3 = 0.86650 * b3 + white * 0.3104856;
-      b4 = 0.55000 * b4 + white * 0.5329522;
-      b5 = -0.7616 * b5 - white * 0.0168980;
-      data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-      data[i] *= 0.11;
-      b6 = white * 0.115926;
-    }
-  }
-
-  private generateBrownNoise(data: Float32Array): void {
-    let lastOut = 0;
-    for (let i = 0; i < data.length; i++) {
-      const white = Math.random() * 2 - 1;
-      data[i] = (lastOut + (0.02 * white)) / 1.02;
-      lastOut = data[i];
-      data[i] *= 3.5;
-    }
-  }
-
-  private generateBandLimitedNoise(data: Float32Array, lowFreq: number, highFreq: number): void {
-    // Simple band-limiting via averaging (not perfect but functional)
-    this.generateWhiteNoise(data);
-    const windowSize = Math.floor(this.audioCtx!.sampleRate / highFreq);
-    for (let i = windowSize; i < data.length; i++) {
-      let sum = 0;
-      for (let j = 0; j < windowSize; j++) {
-        sum += data[i - j];
-      }
-      data[i] = sum / windowSize;
-    }
-  }
-
-  private schedulePulses(start: number): void {
-    if (!this.audioCtx) return;
-
-    const period = 1 / this.params.rate; // Time between pulses (per ear)
-    const duration = 60; // Schedule 60 seconds ahead
-    const endTime = start + duration;
-
-    // Clear old schedules
-    this.scheduledPulses = [];
-
-    switch (this.params.pattern) {
-      case 'pure-alternation':
-        this.schedulePureAlternation(start, endTime, period);
-        break;
-      case 'mirrored-overlap':
-        this.scheduleMirroredOverlap(start, endTime, period);
-        break;
-      case 'asymmetric':
-        this.scheduleAsymmetric(start, endTime, period);
-        break;
-      case 'clustered':
-        this.scheduleClustered(start, endTime, period);
-        break;
-      case 'randomized':
-        this.scheduleRandomized(start, endTime, period);
-        break;
-    }
-  }
-
-  private schedulePureAlternation(start: number, end: number, period: number): void {
-    let time = start;
-    let ear: 'left' | 'right' = 'left';
-    
-    while (time < end) {
-      this.triggerPulse(time, ear);
-      time += period / 2; // Alternate ears at half period
-      ear = ear === 'left' ? 'right' : 'left';
-    }
-  }
-
-  private scheduleMirroredOverlap(start: number, end: number, period: number): void {
-    // Both ears pulse simultaneously, then alternate
-    let time = start;
-    
-    while (time < end) {
-      // Simultaneous pulse
-      this.triggerPulse(time, 'left');
-      this.triggerPulse(time, 'right');
-      
-      // Alternating pulses
-      time += period / 4;
-      this.triggerPulse(time, 'left');
-      time += period / 4;
-      this.triggerPulse(time, 'right');
-      time += period / 2;
-    }
-  }
-
-  private scheduleAsymmetric(start: number, end: number, period: number): void {
-    // Left ear pulses at normal rate, right ear at 2/3 rate with offset
-    let timeL = start;
-    let timeR = start + period * 0.25; // Offset
-    
-    while (timeL < end || timeR < end) {
-      if (timeL < end) {
-        this.triggerPulse(timeL, 'left');
-        timeL += period;
-      }
-      if (timeR < end) {
-        this.triggerPulse(timeR, 'right');
-        timeR += period * 1.5;
-      }
-    }
-  }
-
-  private scheduleClustered(start: number, end: number, period: number): void {
-    // Bursts of 3 rapid pulses, then pause
-    let time = start;
-    const clusterInterval = period * 3;
-    const intraClusterGap = period / 4;
-    
-    while (time < end) {
-      // Cluster of 3
-      for (let i = 0; i < 3; i++) {
-        const ear: 'left' | 'right' = i % 2 === 0 ? 'left' : 'right';
-        this.triggerPulse(time + i * intraClusterGap, ear);
-      }
-      time += clusterInterval;
-    }
-  }
-
-  private scheduleRandomized(start: number, end: number, period: number): void {
-    // Random timing within bounds
-    let time = start;
-    
-    while (time < end) {
-      const ear: 'left' | 'right' = Math.random() > 0.5 ? 'left' : 'right';
-      const jitter = (Math.random() - 0.5) * period * 0.3;
-      this.triggerPulse(time + jitter, ear);
-      time += period * (0.7 + Math.random() * 0.6);
-    }
-  }
-
-  private triggerPulse(time: number, ear: 'left' | 'right'): void {
-    if (!this.audioCtx || !this.bilateralNodes.leftGain || !this.bilateralNodes.rightGain) return;
-
-    const { attack, decay, sustain, dutyCycle } = this.params.envelope;
-    const pulseDuration = attack + sustain + decay;
-    const gainNode = ear === 'left' ? this.bilateralNodes.leftGain : this.bilateralNodes.rightGain;
-
-    // Schedule envelope
-    gainNode.gain.cancelScheduledValues(time);
-    gainNode.gain.setValueAtTime(0, time);
-    gainNode.gain.linearRampToValueAtTime(1, time + attack);
-    
-    if (sustain > 0) {
-      gainNode.gain.setValueAtTime(1, time + attack + sustain);
-    }
-    
-    gainNode.gain.linearRampToValueAtTime(0, time + attack + sustain + decay);
-
-    this.scheduledPulses.push({ time, ear, gain: gainNode });
-  }
-
-  stopBilateral(): void {
-    if (!this.audioCtx) return;
-
-    this.isPlaying = false;
-    
-    // Stop carrier
-    if (this.bilateralNodes.carrier) {
-      if ('stop' in this.bilateralNodes.carrier) {
-        this.bilateralNodes.carrier.stop();
-      }
-      this.bilateralNodes.carrier.disconnect();
-      this.bilateralNodes.carrier = undefined;
-    }
-
-    // Reset gains
-    const now = this.audioCtx.currentTime;
-    if (this.bilateralNodes.leftGain) {
-      this.bilateralNodes.leftGain.gain.cancelScheduledValues(now);
-      this.bilateralNodes.leftGain.gain.setTargetAtTime(0, now, 0.01);
-    }
-    if (this.bilateralNodes.rightGain) {
-      this.bilateralNodes.rightGain.gain.cancelScheduledValues(now);
-      this.bilateralNodes.rightGain.gain.setTargetAtTime(0, now, 0.01);
-    }
-
-    this.scheduledPulses = [];
-  }
-
-  getAnalyser(): AnalyserNode | null {
-    return this.analyser;
-  }
-
-  async renderOffline(duration: number, params: BilateralParams): Promise<AudioBuffer> {
-    if (!this.audioCtx) await this.initialize();
-
-    const offlineCtx = new OfflineAudioContext(2, duration * this.audioCtx.sampleRate, this.audioCtx.sampleRate);
-    
-    // Setup graph in offline context
-    const masterGain = offlineCtx.createGain();
-    const analyser = offlineCtx.createAnalyser();
-    const panner = offlineCtx.createStereoPanner();
-    const splitter = offlineCtx.createChannelSplitter(2);
     const merger = offlineCtx.createChannelMerger(2);
-    const leftGain = offlineCtx.createGain();
-    const rightGain = offlineCtx.createGain();
-
-    // Routing
-    panner.connect(splitter);
-    splitter.connect(leftGain, 0);
-    splitter.connect(rightGain, 1);
-    leftGain.connect(merger, 0, 0);
-    rightGain.connect(merger, 0, 1);
-    merger.connect(masterGain);
-    masterGain.connect(analyser);
-    analyser.connect(offlineCtx.destination);
-
-    // Set gains
-    leftGain.gain.value = params.leftGain;
-    rightGain.gain.value = params.rightGain;
-
-    // Create carrier
-    let carrier: AudioNode;
-    if (params.carrier === 'sine') {
+    merger.connect(masterNode);
+    masterNode.connect(offlineCtx.destination);
+    
+    // Schedule pulses for entire duration
+    const { rate, pattern } = this.config;
+    const totalPulses = Math.floor(duration * rate);
+    let pulseIdx = 0;
+    let time = 0.1;
+    
+    for (let i = 0; i < totalPulses; i++) {
+      // Simplified offline rendering (would need full recreation of createPulse logic)
+      const pulseDuration = 1 / rate;
+      
       const osc = offlineCtx.createOscillator();
       osc.type = 'sine';
-      osc.frequency.value = params.carrierFreq;
-      osc.connect(panner);
-      osc.start(0);
-      carrier = osc;
-    } else {
-      // For noise, we'd need to create a buffer source - simplified here
-      const osc = offlineCtx.createOscillator();
-      osc.type = 'triangle';
-      osc.frequency.value = params.carrierFreq * 0.5;
-      osc.connect(panner);
-      osc.start(0);
-      carrier = osc;
+      osc.frequency.value = this.config.carrierFreq;
+      osc.start(time);
+      osc.stop(time + pulseDuration);
+      
+      const gain = offlineCtx.createGain();
+      gain.gain.setValueAtTime(0, time);
+      gain.gain.linearRampToValueAtTime(1, time + this.config.attack);
+      gain.gain.linearRampToValueAtTime(0, time + pulseDuration);
+      
+      const side = pulseIdx % 2 === 0 ? 0 : 1;
+      osc.connect(gain);
+      gain.connect(merger, 0, side);
+      
+      time += pulseDuration;
+      pulseIdx++;
     }
-
-    // Schedule pulses
-    const period = 1 / params.rate;
-    let time = 0;
-    let ear: 'left' | 'right' = 'left';
-
-    while (time < duration) {
-      const { attack, decay, sustain } = params.envelope;
-      const gainNode = ear === 'left' ? leftGain : rightGain;
-
-      gainNode.gain.setValueAtTime(0, time);
-      gainNode.gain.linearRampToValueAtTime(1, time + attack);
-      if (sustain > 0) {
-        gainNode.gain.setValueAtTime(1, time + attack + sustain);
-      }
-      gainNode.gain.linearRampToValueAtTime(0, time + attack + sustain + decay);
-
-      time += period / 2;
-      ear = ear === 'left' ? 'right' : 'left';
-    }
-
-    // Render
+    
     const renderedBuffer = await offlineCtx.startRendering();
-    return renderedBuffer;
+    return this.bufferToWav(renderedBuffer, bitDepth);
   }
 
-  destroy(): void {
-    if (this.audioCtx) {
-      this.audioCtx.close();
-      this.audioCtx = null;
+  private bufferToWav(buffer: AudioBuffer, bitDepth: 16 | 24): Blob {
+    const numChannels = 2;
+    const sampleRate = buffer.sampleRate;
+    const format = bitDepth;
+    const bytesPerSample = format / 8;
+    const blockAlign = numChannels * bytesPerSample;
+    
+    const data = buffer.getChannelData(0);
+    const data2 = buffer.getChannelData(1);
+    const numSamples = data.length;
+    
+    const buffer_size = 44 + numSamples * blockAlign;
+    const arrayBuffer = new ArrayBuffer(buffer_size);
+    const view = new DataView(arrayBuffer);
+    
+    // Write WAV header
+    this.writeString(view, 0, 'RIFF');
+    view.setUint32(4, buffer_size - 8, true);
+    this.writeString(view, 8, 'WAVE');
+    this.writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, format, true);
+    this.writeString(view, 36, 'data');
+    view.setUint32(40, numSamples * blockAlign, true);
+    
+    // Write interleaved audio data
+    let offset = 44;
+    for (let i = 0; i < numSamples; i++) {
+      const sample1 = Math.max(-1, Math.min(1, data[i]));
+      const sample2 = Math.max(-1, Math.min(1, data2[i]));
+      
+      if (format === 16) {
+        const int16 = (sample: number) => Math.floor(sample * 32767);
+        view.setInt16(offset, int16(sample1), true);
+        view.setInt16(offset + 2, int16(sample2), true);
+        offset += 4;
+      } else {
+        const int24 = (sample: number) => Math.floor(sample * 8388607);
+        view.setUint8(offset, int24(sample1) & 0xff);
+        view.setUint8(offset + 1, (int24(sample1) >> 8) & 0xff);
+        view.setUint8(offset + 2, (int24(sample1) >> 16) & 0xff);
+        view.setUint8(offset + 3, int24(sample2) & 0xff);
+        view.setUint8(offset + 4, (int24(sample2) >> 8) & 0xff);
+        view.setUint8(offset + 5, (int24(sample2) >> 16) & 0xff);
+        offset += 6;
+      }
+    }
+    
+    return new Blob([arrayBuffer], { type: 'audio/wav' });
+  }
+
+  private writeString(view: DataView, offset: number, str: string): void {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  }
+
+  dispose(): void {
+    this.stop();
+    if (this.ctx) {
+      this.ctx.close();
+      this.ctx = null;
     }
   }
 }
 
 // Singleton instance
-export const audioEngine = new AudioEngine();
+export const engine = new AudioEngine();

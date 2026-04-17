@@ -158,12 +158,15 @@
 			canvas.height = height;
 			draw();
 		}
+		return () => {
+			if (animationFrame) cancelAnimationFrame(animationFrame);
+		};
 	});
 </script>
 
 <canvas
 	bind:this={canvas}
-	id="oscilloscope"
+	id={canvasId}
 	class={cn(
 		'rounded-lg bg-gray-900/50 backdrop-blur-sm',
 		'ring-1 ring-gray-800',

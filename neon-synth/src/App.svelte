@@ -1,84 +1,162 @@
 <script lang="ts">
-	import { audioEngine } from '$lib/audio/AudioEngine';
+	import { engine } from '$lib/audio/AudioEngine';
 	import { 
-		paramsStore, 
-		patternPresets, 
-		ratePresets, 
-		carrierPresets,
-		setPattern, 
-		setRate, 
-		applyRatePreset,
-		setCarrier, 
-		setCarrierFreq, 
-		updateEnvelope,
-		setLeftGain,
-		setRightGain,
-		playbackState,
-		setPlaying,
-		setUploadedTrack
-	} from '$lib/stores/params';
-	import { audioBufferToWav, downloadWav } from '$lib/utils/wavExport';
+		isPlaying,
+		pattern,
+		ratePreset,
+		rateValue,
+		currentRate,
+		carrierType,
+		carrierFreq,
+		attackTime,
+		decayTime,
+		dutyCycle,
+		leftGain,
+		rightGain,
+		userAudioBuffer,
+		userAudioGain,
+		masterGain,
+		exportDuration,
+		exportBitDepth,
+		waveformLeft,
+		waveformRight,
+		levelLeft,
+		levelRight,
+		spectrumData
+	} from '$lib/stores/audioStore';
+	import Visualizer from '$lib/components/Visualizer.svelte';
 	import Knob from '$lib/components/Knob.svelte';
 	import Fader from '$lib/components/Fader.svelte';
 	import PresetButton from '$lib/components/PresetButton.svelte';
-	import Visualizer from '$lib/components/Visualizer.svelte';
-	import { Play, Square, Upload, Download, Info, AlertTriangle, Activity, Settings, Music } from 'lucide-svelte';
+	import { Play, Square, Upload, Download, Info, AlertTriangle, Music } from 'lucide-svelte';
 	
 	function cn(...classes: Array<string | undefined | null | false>): string {
 		return classes.filter(Boolean).join(' ');
 	}
 	
 	let isInitialized = $state(false);
-	let uploadedTrack: { buffer: AudioBuffer; name: string; gain: number } | null = null;
-	let exportDuration = 60;
-	let exportBitDepth: 16 | 24 = 16;
-	let isExporting = $state(false);
 	let showSafetyModal = $state(false);
 	let showInfoPanel = $state(false);
+	let isExporting = $state(false);
+	let visualizerAnimationId: number | null = null;
+	
+	// Pattern presets
+	const patternPresets = {
+		pure: { label: 'Pure Alternation', icon: '⇄' },
+		mirrored: { label: 'Mirrored Overlap', icon: '⟷' },
+		asymmetric: { label: 'Asymmetric', icon: '≠' },
+		clustered: { label: 'Clustered', icon: '⋯' },
+		randomized: { label: 'Randomized', icon: '⚡' }
+	};
+	
+	// Rate presets
+	const ratePresets = {
+		delta: { label: 'Delta', range: '0.5-3 Hz', default: 2 },
+		theta: { label: 'Theta', range: '4-7 Hz', default: 6 },
+		alpha: { label: 'Alpha', range: '8-12 Hz', default: 10 },
+		beta: { label: 'Beta', range: '13-30 Hz', default: 20 },
+		emdr: { label: 'EMDR', range: '1-3 Hz', default: 2 }
+	};
+	
+	// Carrier presets
+	const carrierPresets = {
+		sine: { label: 'Sine Tone' },
+		pink: { label: 'Pink Noise' },
+		brown: { label: 'Brown Noise' },
+		bandlimited: { label: 'Band-Limited Noise' }
+	};
 	
 	async function handleInitialize() {
 		if (!isInitialized) {
-			await audioEngine.initialize();
+			await engine.init();
 			isInitialized = true;
 			showSafetyModal = true;
+			startVisualizerLoop();
 		}
+	}
+	
+	function startVisualizerLoop() {
+		function update() {
+			if (!isPlaying) {
+				waveformLeft.set(new Float32Array(2048));
+				waveformRight.set(new Float32Array(2048));
+				levelLeft.set(0);
+				levelRight.set(0);
+			} else {
+				const data = engine.getAnalyserData();
+				waveformLeft.set(data.waveformLeft);
+				waveformRight.set(data.waveformRight);
+				levelLeft.set(data.levelLeft);
+				levelRight.set(data.levelRight);
+			}
+			visualizerAnimationId = requestAnimationFrame(update);
+		}
+		update();
 	}
 	
 	function handlePlay() {
 		if (!isInitialized) return;
 		
-		if ($playbackState.isPlaying) {
-			audioEngine.stopBilateral();
-			setPlaying(false);
+		if ($isPlaying) {
+			engine.stop();
+			isPlaying.set(false);
 		} else {
-			audioEngine.updateParams($paramsStore);
-			
-			if (uploadedTrack) {
-				audioEngine.playUploadedTrack(uploadedTrack);
-			}
-			
-			audioEngine.startBilateral();
-			setPlaying(true);
+			updateEngineConfig();
+			engine.play();
+			isPlaying.set(true);
 		}
 	}
 	
-	async function handleFileUpload(event: Event) {
+	function updateEngineConfig() {
+		engine.updateConfig({
+			pattern: $pattern,
+			rate: $currentRate,
+			carrierType: $carrierType,
+			carrierFreq: $carrierFreq,
+			attack: $attackTime,
+			decay: $decayTime,
+			dutyCycle: $dutyCycle,
+			leftGain: $leftGain,
+			rightGain: $rightGain,
+			masterGain: $masterGain
+		});
+	}
+	
+	function setPattern(p: keyof typeof patternPresets) {
+		pattern.set(p);
+		if ($isPlaying) updateEngineConfig();
+	}
+	
+	function setRatePreset(p: keyof typeof ratePresets) {
+		ratePreset.set(p);
+		rateValue.set(ratePresets[p].default);
+		if ($isPlaying) updateEngineConfig();
+	}
+	
+	function handleFileUpload(event: Event) {
 		const input = event.target as HTMLInputElement;
 		const file = input.files?.[0];
-		if (!file) return;
+		if (!file || !engine) return;
 		
-		try {
-			const track = await audioEngine.loadUploadedTrack(file);
-			uploadedTrack = track;
-			setUploadedTrack(file.name);
-			
-			if ($playbackState.isPlaying) {
-				audioEngine.playUploadedTrack(track);
+		const ctx = new AudioContext();
+		const reader = new FileReader();
+		
+		reader.onload = async () => {
+			try {
+				const arrayBuffer = reader.result as ArrayBuffer;
+				const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+				userAudioBuffer.set(audioBuffer);
+				
+				if ($isPlaying) {
+					updateEngineConfig();
+				}
+			} catch (error) {
+				console.error('Failed to load audio:', error);
 			}
-		} catch (error) {
-			console.error('Failed to load audio file:', error);
-		}
+			ctx.close();
+		};
 		
+		reader.readAsArrayBuffer(file);
 		input.value = '';
 	}
 	
@@ -86,12 +164,16 @@
 		if (!isInitialized || isExporting) return;
 		
 		isExporting = true;
+		updateEngineConfig();
 		
 		try {
-			const renderedBuffer = await audioEngine.renderOffline(exportDuration, $paramsStore);
-			const wavBlob = audioBufferToWav(renderedBuffer, { bitDepth: exportBitDepth });
-			const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-			downloadWav(wavBlob, `neon-synth-bilateral-${timestamp}.wav`);
+			const blob = await engine.renderOffline($exportDuration, $exportBitDepth);
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `neon-synth-bilateral-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.wav`;
+			a.click();
+			URL.revokeObjectURL(url);
 		} catch (error) {
 			console.error('Export failed:', error);
 		} finally {
@@ -102,6 +184,12 @@
 	function closeSafetyModal() {
 		showSafetyModal = false;
 	}
+	
+	$effect(() => {
+		if ($isPlaying) {
+			updateEngineConfig();
+		}
+	});
 </script>
 
 <svelte:window onclick={handleInitialize} />
@@ -185,14 +273,14 @@
 					<button 
 						class={cn(
 							'flex items-center gap-2 px-6 py-3 rounded-lg font-bold transition-all',
-							$playbackState.isPlaying 
+							$isPlaying 
 								? 'bg-gradient-to-r from-red-500 to-pink-500 text-white shadow-lg shadow-red-500/30' 
 								: 'bg-gradient-to-r from-cyan-400 to-blue-500 text-[#0d0d0f] shadow-lg shadow-cyan-500/30 hover:scale-105'
 						)}
 						onclick={handlePlay}
 						disabled={!isInitialized}
 					>
-						{#if $playbackState.isPlaying}
+						{#if $isPlaying}
 							<Square class="w-5 h-5" />
 							Stop
 						{:else}
@@ -234,7 +322,7 @@
 						{#each Object.entries(patternPresets) as [key, preset]}
 							<PresetButton
 								label={preset.label}
-								active={$paramsStore.pattern === key}
+								active={$pattern === key}
 								color="cyan"
 								size="sm"
 								onClick={() => setPattern(key as typeof key)}
@@ -250,7 +338,7 @@
 						{#each Object.entries(ratePresets) as [key, preset]}
 							<PresetButton
 								label={preset.label.split(' ')[0]}
-								active={$paramsStore.rate === preset.default}
+								active={$currentRate === preset.default}
 								color="magenta"
 								size="sm"
 								onClick={() => applyRatePreset(key as typeof key)}
@@ -259,7 +347,7 @@
 					</div>
 					<div class="mt-4 pt-4 border-t border-gray-800">
 						<div class="text-center mb-2">
-							<span class="text-2xl font-bold text-cyan-400">{$paramsStore.rate.toFixed(1)}</span>
+							<span class="text-2xl font-bold text-cyan-400">{$currentRate.toFixed(1)}</span>
 							<span class="text-xs text-gray-500 ml-1">Hz</span>
 						</div>
 						<input
@@ -267,7 +355,7 @@
 							min="0.5"
 							max="30"
 							step="0.1"
-							bind:value={$paramsStore.rate}
+							bind:value={$currentRate}
 							oninput={(e) => setRate(parseFloat(e.target.value))}
 							class="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
 						/>
@@ -289,7 +377,7 @@
 						<div class="flex-1">
 							<label class="block text-xs text-gray-500 mb-2">Waveform</label>
 							<select 
-								bind:value={$paramsStore.carrier} 
+								bind:value={$carrierType} 
 								onchange={(e) => setCarrier(e.target.value as any)}
 								class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-400 transition-colors"
 							>
@@ -298,10 +386,10 @@
 								{/each}
 							</select>
 						</div>
-						{#if $paramsStore.carrier === 'sine'}
+						{#if $carrierType === 'sine'}
 							<Knob
 								label="Frequency"
-								value={$paramsStore.carrierFreq}
+								value={$carrierFreq}
 								min={100}
 								max={2000}
 								step={10}
@@ -325,7 +413,7 @@
 					<div class="flex justify-around">
 						<Knob
 							label="Attack"
-							value={$paramsStore.envelope.attack}
+							value={$attackTime}
 							min={0.001}
 							max={0.5}
 							step={0.001}
@@ -335,7 +423,7 @@
 						/>
 						<Knob
 							label="Decay"
-							value={$paramsStore.envelope.decay}
+							value={$decayTime}
 							min={0.01}
 							max={1.0}
 							step={0.01}
@@ -345,7 +433,7 @@
 						/>
 						<Knob
 							label="Duty Cycle"
-							value={$paramsStore.envelope.dutyCycle}
+							value={$dutyCycle}
 							min={0.1}
 							max={0.9}
 							step={0.05}
@@ -362,7 +450,7 @@
 						<label class="flex items-center gap-2 text-xs text-gray-400">
 							<input 
 								type="checkbox" 
-								bind:checked={$paramsStore.panSmooth}
+								checked={false}
 								class="rounded border-gray-700 bg-gray-800 text-cyan-400 focus:ring-cyan-400"
 							/>
 							Smooth Pan
@@ -371,7 +459,7 @@
 					<div class="flex justify-center gap-8">
 						<Fader
 							label="Left"
-							value={$paramsStore.leftGain}
+							value={$leftGain}
 							min={0}
 							max={1}
 							step={0.01}
@@ -380,7 +468,7 @@
 						/>
 						<Fader
 							label="Right"
-							value={$paramsStore.rightGain}
+							value={$rightGain}
 							min={0}
 							max={1}
 							step={0.01}
@@ -444,7 +532,7 @@
 					<div>
 						<label class="block text-xs text-gray-500 mb-1">Duration</label>
 						<select 
-							bind:value={exportDuration}
+							value={$exportDuration}
 							class="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-cyan-400"
 						>
 							<option value={30}>30 seconds</option>
@@ -457,7 +545,7 @@
 					<div>
 						<label class="block text-xs text-gray-500 mb-1">Bit Depth</label>
 						<select 
-							bind:value={exportBitDepth}
+							value={$exportBitDepth}
 							class="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-cyan-400"
 						>
 							<option value={16}>16-bit PCM</option>
