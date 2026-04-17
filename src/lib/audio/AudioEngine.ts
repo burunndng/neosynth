@@ -14,6 +14,7 @@ export interface AudioEngineConfig {
   masterGain: number;
   userAudioBuffer: AudioBuffer | null;
   userAudioGain: number;
+  sampleBuffer: AudioBuffer | null;
 }
 
 export class AudioEngine {
@@ -47,7 +48,8 @@ export class AudioEngine {
     panMode: 'hard',
     masterGain: 0.8,
     userAudioBuffer: null,
-    userAudioGain: 0.5
+    userAudioGain: 0.5,
+    sampleBuffer: null
   };
 
   async init(): Promise<void> {
@@ -240,34 +242,36 @@ export class AudioEngine {
     if (!this.ctx) return null;
     
     switch (type) {
-      case 'sine': {
+      case 'sine':
+      case 'square':
+      case 'sawtooth':
+      case 'triangle': {
         const osc = this.ctx.createOscillator();
-        osc.type = 'sine';
+        osc.type = type as OscillatorType;
         osc.frequency.value = freq;
         osc.start(time);
-        osc.stop(time + 2); // Auto-stop after reasonable duration
+        osc.stop(time + 2);
         return osc;
       }
+      case 'white-noise':
       case 'pink':
       case 'brown':
       case 'bandlimited': {
-        // Create noise buffer
-        const bufferSize = this.ctx.sampleRate * 2; // 2 seconds
+        const bufferSize = this.ctx.sampleRate * 2;
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const data = buffer.getChannelData(0);
         
         for (let i = 0; i < bufferSize; i++) {
           const white = Math.random() * 2 - 1;
-          if (type === 'pink') {
-            // Simple pink noise approximation
+          if (type === 'white-noise') {
+            data[i] = white;
+          } else if (type === 'pink') {
             data[i] = (white + (data[i-1] || 0) * 0.9) / 1.9;
           } else if (type === 'brown') {
-            // Brown noise
             const last = data[i-1] || 0;
             data[i] = (last + (0.02 * white)) / 1.02;
-            data[i] *= 3; // Compensate for gain loss
+            data[i] *= 3;
           } else {
-            // Bandlimited (lowpass filtered white)
             data[i] = white;
           }
         }
@@ -286,6 +290,14 @@ export class AudioEngine {
         }
         
         return source;
+      }
+      case 'sample': {
+        if (!this.config.sampleBuffer) return null;
+        const sampleSource = this.ctx.createBufferSource();
+        sampleSource.buffer = this.config.sampleBuffer;
+        sampleSource.start(time);
+        sampleSource.stop(time + 2);
+        return sampleSource;
       }
       default:
         return null;
@@ -363,7 +375,6 @@ export class AudioEngine {
     
     const offlineCtx = new OfflineAudioContext(2, duration * 44100, 44100);
     
-    // Recreate signal chain in offline context
     const masterNode = offlineCtx.createGain();
     masterNode.gain.value = this.config.masterGain;
     
@@ -371,30 +382,69 @@ export class AudioEngine {
     merger.connect(masterNode);
     masterNode.connect(offlineCtx.destination);
     
-    // Schedule pulses for entire duration
-    const { rate, pattern } = this.config;
+    const { rate, pattern, carrierType, carrierFreq, attack, decay, dutyCycle, leftGain, rightGain } = this.config;
     const totalPulses = Math.floor(duration * rate);
     let pulseIdx = 0;
     let time = 0.1;
     
     for (let i = 0; i < totalPulses; i++) {
-      // Simplified offline rendering (would need full recreation of createPulse logic)
       const pulseDuration = 1 / rate;
+      const sustainTime = pulseDuration * dutyCycle - attack - decay;
       
-      const osc = offlineCtx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = this.config.carrierFreq;
-      osc.start(time);
-      osc.stop(time + pulseDuration);
+      let leftActive = false;
+      let rightActive = false;
       
-      const gain = offlineCtx.createGain();
-      gain.gain.setValueAtTime(0, time);
-      gain.gain.linearRampToValueAtTime(1, time + this.config.attack);
-      gain.gain.linearRampToValueAtTime(0, time + pulseDuration);
+      switch (pattern) {
+        case 'pure':
+          leftActive = pulseIdx % 2 === 0;
+          rightActive = pulseIdx % 2 === 1;
+          break;
+        case 'mirrored':
+          leftActive = true;
+          rightActive = true;
+          break;
+        case 'asymmetric':
+          leftActive = pulseIdx % 3 !== 2;
+          rightActive = pulseIdx % 3 !== 0;
+          break;
+        case 'clustered':
+          const cluster = Math.floor(pulseIdx / 3);
+          leftActive = cluster % 2 === 0;
+          rightActive = cluster % 2 === 1;
+          break;
+        case 'randomized':
+          leftActive = Math.random() > 0.5;
+          rightActive = Math.random() > 0.5;
+          break;
+      }
       
-      const side = pulseIdx % 2 === 0 ? 0 : 1;
-      osc.connect(gain);
-      gain.connect(merger, 0, side);
+      const carrier = this.createOfflineCarrier(offlineCtx, carrierType, carrierFreq, time, pulseDuration);
+      if (carrier) {
+        const leftGainNode = offlineCtx.createGain();
+        const rightGainNode = offlineCtx.createGain();
+        leftGainNode.gain.value = 0;
+        rightGainNode.gain.value = 0;
+        
+        carrier.connect(leftGainNode);
+        carrier.connect(rightGainNode);
+        
+        if (leftActive) {
+          leftGainNode.gain.setValueAtTime(0, time);
+          leftGainNode.gain.linearRampToValueAtTime(leftGain, time + attack);
+          leftGainNode.gain.setValueAtTime(leftGain, time + attack + Math.max(0, sustainTime));
+          leftGainNode.gain.linearRampToValueAtTime(0, time + attack + Math.max(0, sustainTime) + decay);
+        }
+        
+        if (rightActive) {
+          rightGainNode.gain.setValueAtTime(0, time);
+          rightGainNode.gain.linearRampToValueAtTime(rightGain, time + attack);
+          rightGainNode.gain.setValueAtTime(rightGain, time + attack + Math.max(0, sustainTime));
+          rightGainNode.gain.linearRampToValueAtTime(0, time + attack + Math.max(0, sustainTime) + decay);
+        }
+        
+        leftGainNode.connect(merger, 0, 0);
+        rightGainNode.connect(merger, 0, 1);
+      }
       
       time += pulseDuration;
       pulseIdx++;
@@ -402,6 +452,70 @@ export class AudioEngine {
     
     const renderedBuffer = await offlineCtx.startRendering();
     return this.bufferToWav(renderedBuffer, bitDepth);
+  }
+
+  private createOfflineCarrier(ctx: OfflineAudioContext, type: CarrierType, freq: number, time: number, duration: number): AudioNode | null {
+    switch (type) {
+      case 'sine':
+      case 'square':
+      case 'sawtooth':
+      case 'triangle': {
+        const osc = ctx.createOscillator();
+        osc.type = type as OscillatorType;
+        osc.frequency.value = freq;
+        osc.start(time);
+        osc.stop(time + duration);
+        return osc;
+      }
+      case 'white-noise':
+      case 'pink':
+      case 'brown':
+      case 'bandlimited': {
+        const bufferSize = Math.ceil(duration * 44100);
+        const buffer = ctx.createBuffer(1, bufferSize, 44100);
+        const data = buffer.getChannelData(0);
+        
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          if (type === 'white-noise') {
+            data[i] = white;
+          } else if (type === 'pink') {
+            data[i] = (white + (data[i-1] || 0) * 0.9) / 1.9;
+          } else if (type === 'brown') {
+            const last = data[i-1] || 0;
+            data[i] = (last + (0.02 * white)) / 1.02;
+            data[i] *= 3;
+          } else {
+            data[i] = white;
+          }
+        }
+        
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.start(time);
+        source.stop(time + duration);
+        
+        if (type === 'bandlimited') {
+          const filter = ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.value = Math.min(freq * 2, 20000);
+          source.connect(filter);
+          return filter;
+        }
+        
+        return source;
+      }
+      case 'sample': {
+        if (!this.config.sampleBuffer) return null;
+        const sampleSource = ctx.createBufferSource();
+        sampleSource.buffer = this.config.sampleBuffer;
+        sampleSource.start(time);
+        sampleSource.stop(time + duration);
+        return sampleSource;
+      }
+      default:
+        return null;
+    }
   }
 
   private bufferToWav(buffer: AudioBuffer, bitDepth: 16 | 24): Blob {
