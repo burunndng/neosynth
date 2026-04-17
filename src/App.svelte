@@ -28,7 +28,7 @@
 	import Knob from '$lib/components/Knob.svelte';
 	import Fader from '$lib/components/Fader.svelte';
 	import PresetButton from '$lib/components/PresetButton.svelte';
-	import { Play, Square, Upload, Download, Info, AlertTriangle, Music, Activity } from 'lucide-svelte';
+	import { Play, Square, Upload, Download, Info, AlertTriangle, Music, Activity, Settings } from 'lucide-svelte';
 	
 	function cn(...classes: Array<string | undefined | null | false>): string {
 		return classes.filter(Boolean).join(' ');
@@ -130,6 +130,42 @@
 	function setRatePreset(p: keyof typeof ratePresets) {
 		ratePreset.set(p);
 		rateValue.set(ratePresets[p].default);
+		if ($isPlaying) updateEngineConfig();
+	}
+
+	function applyRatePreset(p: keyof typeof ratePresets) {
+		setRatePreset(p);
+	}
+
+	function setRate(value: number) {
+		currentRate.set(value);
+		if ($isPlaying) updateEngineConfig();
+	}
+
+	function setCarrier(value: string) {
+		carrierType.set(value as any);
+		if ($isPlaying) updateEngineConfig();
+	}
+
+	function setCarrierFreq(value: number) {
+		carrierFreq.set(value);
+		if ($isPlaying) updateEngineConfig();
+	}
+
+	function updateEnvelope(values: { attack?: number; decay?: number; dutyCycle?: number }) {
+		if (values.attack !== undefined) attackTime.set(values.attack);
+		if (values.decay !== undefined) decayTime.set(values.decay);
+		if (values.dutyCycle !== undefined) dutyCycle.set(values.dutyCycle);
+		if ($isPlaying) updateEngineConfig();
+	}
+
+	function setLeftGain(value: number) {
+		leftGain.set(value);
+		if ($isPlaying) updateEngineConfig();
+	}
+
+	function setRightGain(value: number) {
+		rightGain.set(value);
 		if ($isPlaying) updateEngineConfig();
 	}
 	
