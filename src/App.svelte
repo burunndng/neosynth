@@ -414,7 +414,7 @@
 						{#each Object.entries(ratePresets) as [key, preset]}
 							<PresetButton
 								label={preset.label.split(' ')[0]}
-								active={$currentRate === preset.default}
+								active={Math.abs($currentRate - preset.default) < 0.5}
 								color="magenta"
 								size="sm"
 								onClick={() => applyRatePreset(key as typeof key)}
