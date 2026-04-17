@@ -170,36 +170,36 @@
 	}
 	
 	function handleFileUpload(event: Event) {
-		const input = event.target as HTMLInputElement;
-		const file = input.files?.[0];
-		if (!file || !engine) return;
+		try {
+			const input = event.target as HTMLInputElement;
+			const file = input.files?.[0];
+			if (!file || !engine) return;
 
-		const ctx = new AudioContext();
-		const reader = new FileReader();
+			const ctx = new AudioContext();
+			const reader = new FileReader();
 
-		reader.onload = async () => {
-			try {
-				const arrayBuffer = reader.result as ArrayBuffer;
-				const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-				console.log('Audio decoded successfully', { audioBuffer });
-				console.log('userAudioBuffer store:', userAudioBuffer, typeof userAudioBuffer?.set);
-				if (!userAudioBuffer || typeof userAudioBuffer.set !== 'function') {
-					console.error('userAudioBuffer is not a valid store', userAudioBuffer);
-					return;
+			reader.onload = async () => {
+				try {
+					const arrayBuffer = reader.result as ArrayBuffer;
+					const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+					console.log('Audio decoded successfully', { audioBuffer });
+					// Temporarily disabled to debug
+					// userAudioBuffer.set(audioBuffer);
+
+					if ($isPlaying) {
+						updateEngineConfig();
+					}
+				} catch (error) {
+					console.error('Failed to load audio:', error);
 				}
-				userAudioBuffer.set(audioBuffer);
+				ctx.close();
+			};
 
-				if ($isPlaying) {
-					updateEngineConfig();
-				}
-			} catch (error) {
-				console.error('Failed to load audio:', error);
-			}
-			ctx.close();
-		};
-
-		reader.readAsArrayBuffer(file);
-		input.value = '';
+			reader.readAsArrayBuffer(file);
+			input.value = '';
+		} catch (error) {
+			console.error('File upload error:', error);
+		}
 	}
 	
 	async function handleExport() {
