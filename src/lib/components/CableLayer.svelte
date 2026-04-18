@@ -13,7 +13,13 @@
   let { connections }: Props = $props();
 
   const registry = useCablePortRegistry();
-  const ports = registry?.ports;
+  let portMap = $state<Record<string, any>>({});
+
+  $effect(() => {
+    if (registry?.ports) {
+      portMap = registry.ports;
+    }
+  });
 
   function edgeOffset(edge: PortEdge, dist: number): [number, number] {
     switch (edge) {
@@ -50,15 +56,15 @@
   }
 </script>
 
-{#if ports}
+{#if Object.keys(portMap).length > 0}
   <svg
     class="absolute inset-0 w-full h-full pointer-events-none cable-layer"
     style="z-index: 0;"
     aria-hidden="true"
   >
     {#each connections as conn (conn.from + '->' + conn.to)}
-      {@const f = $ports[conn.from]}
-      {@const t = $ports[conn.to]}
+      {@const f = portMap[conn.from]}
+      {@const t = portMap[conn.to]}
       {#if f && t}
         {@const active = f.active || t.active}
         {@const stroke = active ? accentToCss(f.accent) : 'rgba(90, 100, 140, 0.35)'}
