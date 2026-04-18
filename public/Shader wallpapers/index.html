@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>NeoSynth — Bilateral Field</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="grain-overlay" id="grain"></div>
+
+<div class="app">
+  <!-- Header -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-text">
+        <div class="brand-name">NeoSynth</div>
+        <div class="brand-sub">Bilateral · Isochronic · v0.4</div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span class="dot"></span>
+      <span>ENGINE</span>
+      <span class="sep">·</span>
+      <span>44.1 kHz</span>
+      <span class="sep">·</span>
+      <span>STEREO</span>
+      <span class="sep">·</span>
+      <span>LATENCY 12 ms</span>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 10V3M5 6l3-3 3 3M3 12h10"/></svg>
+        Upload
+      </button>
+      <button class="btn">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 5v3M8 10.5v.5"/></svg>
+        Info
+      </button>
+      <button class="btn btn-primary is-playing" id="playBtn">
+        <svg class="ico" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="2" width="3" height="8" rx="0.5"/><rect x="7" y="2" width="3" height="8" rx="0.5"/></svg>
+        Stop
+      </button>
+    </div>
+  </header>
+
+  <!-- Hairline traces overlay (background of layout) -->
+  <div class="layout">
+    <svg class="traces" viewBox="0 0 1640 760" preserveAspectRatio="none" aria-hidden="true">
+      <!-- Left column → Field left edge -->
+      <path d="M 280 120 L 320 120 L 320 380 L 410 380" />
+      <path d="M 280 320 L 340 320 L 340 380 L 410 380" />
+      <path class="flow" d="M 280 540 L 360 540 L 360 380 L 410 380" />
+      <!-- Field right edge → right column -->
+      <path d="M 1130 380 L 1180 380 L 1180 120 L 1360 120" />
+      <path d="M 1130 380 L 1200 380 L 1200 320 L 1360 320" />
+      <path class="flow" d="M 1130 380 L 1220 380 L 1220 540 L 1360 540" />
+      <!-- Bottom: field → sample library -->
+      <path d="M 770 700 L 770 730" />
+    </svg>
+
+    <!-- LEFT COLUMN -->
+    <div class="col left">
+      <!-- Pattern -->
+      <section class="panel">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port r dim"></div>
+        <header class="panel-header">
+          <span class="led pulse"></span>
+          <h2 class="panel-title">Pattern</h2>
+          <span class="panel-meta">EMDR</span>
+        </header>
+        <div class="preset-list">
+          <button class="preset is-active"><span class="preset-glyph">⇄</span>Pure Alternation<span class="preset-tag">L · R</span></button>
+          <button class="preset"><span class="preset-glyph">⟷</span>Mirrored Overlap<span class="preset-tag">L+R</span></button>
+          <button class="preset"><span class="preset-glyph">≠</span>Asymmetric<span class="preset-tag">DUAL</span></button>
+          <button class="preset"><span class="preset-glyph">⋯</span>Clustered<span class="preset-tag">BURST</span></button>
+          <button class="preset"><span class="preset-glyph">⚡</span>Randomized<span class="preset-tag">STO</span></button>
+        </div>
+      </section>
+
+      <!-- Rate -->
+      <section class="panel">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port r dim"></div>
+        <header class="panel-header">
+          <span class="led"></span>
+          <h2 class="panel-title">Rate</h2>
+          <span class="panel-meta">BAND · ALPHA</span>
+        </header>
+        <div class="preset-grid">
+          <button class="preset compact"><span class="preset-glyph">Δ Delta</span><span class="preset-tag">0.5–3</span></button>
+          <button class="preset compact"><span class="preset-glyph">Θ Theta</span><span class="preset-tag">4–7</span></button>
+          <button class="preset compact is-active"><span class="preset-glyph">Α Alpha</span><span class="preset-tag">8–12</span></button>
+          <button class="preset compact"><span class="preset-glyph">Β Beta</span><span class="preset-tag">13–30</span></button>
+          <button class="preset compact" style="grid-column: 1 / -1;"><span class="preset-glyph">EMDR</span><span class="preset-tag">1–3</span></button>
+        </div>
+        <div class="rate-readout">
+          <span class="num">10.0</span>
+          <span class="unit">Hz</span>
+        </div>
+        <input type="range" min="0.5" max="30" step="0.1" value="10" class="range" id="rateRange" style="--p:32%" />
+      </section>
+
+      <!-- Carriers -->
+      <section class="panel">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port r"></div>
+        <header class="panel-header">
+          <span class="led pulse"></span>
+          <h2 class="panel-title">Carriers</h2>
+          <span class="panel-meta">2 ACTIVE</span>
+        </header>
+
+        <div class="chip-group">
+          <div>
+            <div class="chip-section-label">Waves</div>
+            <div class="chip-row" style="margin-top:8px;">
+              <button class="chip is-active">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 8q2-5 4 0t4 0 4 0 3 0"/></svg>
+                Sine
+              </button>
+              <button class="chip">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 12V4h4v8h4V4h4v8h2"/></svg>
+                Square
+              </button>
+              <button class="chip">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 12L5 4l5 8 5-8"/></svg>
+                Saw
+              </button>
+              <button class="chip">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 8l3-4 4 8 4-8 3 4"/></svg>
+                Tri
+              </button>
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <div class="chip-section-label">Noise</div>
+            <div class="chip-row" style="margin-top:8px;">
+              <button class="chip">White</button>
+              <button class="chip is-active">Pink</button>
+              <button class="chip">Brown</button>
+              <button class="chip">B.Lim</button>
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <div class="chip-section-label">Sample</div>
+            <div class="chip-row" style="margin-top:8px;">
+              <button class="chip">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M6 6v4M10 6v4"/></svg>
+                Sound Sample
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:18px; padding-top:14px; border-top:1px solid var(--line);">
+          <div class="knob-row cols-2">
+            <div class="knob">
+              <div class="knob-dial">
+                <svg viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="#1a1d27" stroke-width="6" />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="6" stroke-linecap="round" stroke-dasharray="184" stroke-dashoffset="92" transform="rotate(135 50 50)" style="filter: drop-shadow(0 0 4px oklch(78% 0.115 205 / 0.45))"/>
+                </svg>
+                <div class="disc"></div>
+                <div class="needle" style="transform: translateX(-50%) rotate(45deg)"></div>
+              </div>
+              <div class="knob-label">Frequency</div>
+              <div class="knob-value">440<span class="unit">Hz</span></div>
+            </div>
+            <div class="knob">
+              <div class="knob-dial">
+                <svg viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="#1a1d27" stroke-width="6" />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="6" stroke-linecap="round" stroke-dasharray="184" stroke-dashoffset="46" transform="rotate(135 50 50)" style="filter: drop-shadow(0 0 4px oklch(78% 0.115 205 / 0.45))"/>
+                </svg>
+                <div class="disc"></div>
+                <div class="needle" style="transform: translateX(-50%) rotate(95deg)"></div>
+              </div>
+              <div class="knob-label">Cutoff</div>
+              <div class="knob-value">2.4<span class="unit">kHz</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- CENTER — BILATERAL FIELD -->
+    <div class="col center">
+      <section class="panel field">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port l"></div>
+        <div class="port r"></div>
+        <div class="port b"></div>
+
+        <div class="field-header">
+          <span class="led pulse"></span>
+          <span class="pretitle">FIELD ·</span>
+          <span class="title">BILATERAL · METER BRIDGE</span>
+          <span class="hz">10.00 <span class="small">Hz</span></span>
+        </div>
+
+        <div class="field-body">
+          <!-- Top wave: Left channel -->
+          <div class="field-wave top">
+            <span class="label">L · WAVEFORM</span>
+            <svg viewBox="0 0 800 60" preserveAspectRatio="none">
+              <path id="waveL" d="" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="1.2" style="filter: drop-shadow(0 0 3px oklch(78% 0.115 205 / 0.5))"/>
+            </svg>
+          </div>
+
+          <!-- Left rail -->
+          <div class="field-rail l">
+            <span class="ch">L</span>
+            <div class="led-vert" id="railL"></div>
+            <span class="db">−6</span>
+          </div>
+
+          <!-- XY field -->
+          <div class="field-xy">
+            <div class="axis-l">L</div>
+            <div class="axis-r">R</div>
+            <div class="axis-t">DEPTH</div>
+            <div class="axis-b">RATE</div>
+            <svg viewBox="0 0 400 280" preserveAspectRatio="xMidYMid meet">
+              <!-- crosshair -->
+              <line x1="200" y1="20" x2="200" y2="130" stroke="oklch(78% 0.115 205 / 0.18)" stroke-width="0.6" stroke-dasharray="2 4"/>
+              <line x1="200" y1="150" x2="200" y2="260" stroke="oklch(78% 0.115 205 / 0.18)" stroke-width="0.6" stroke-dasharray="2 4"/>
+              <line x1="20"  y1="140" x2="190" y2="140" stroke="oklch(78% 0.115 205 / 0.18)" stroke-width="0.6" stroke-dasharray="2 4"/>
+              <line x1="210" y1="140" x2="380" y2="140" stroke="oklch(78% 0.115 205 / 0.18)" stroke-width="0.6" stroke-dasharray="2 4"/>
+              <!-- grid dots -->
+              <g fill="oklch(78% 0.115 205 / 0.15)" id="gridDots"></g>
+              <!-- bilateral lissajous trail -->
+              <path id="trail" d="" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="1.4" stroke-linecap="round" style="filter: drop-shadow(0 0 6px oklch(78% 0.115 205 / 0.7))"/>
+              <!-- L pulse marker -->
+              <circle id="pulseL" cx="80" cy="140" r="7" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="1.2" opacity="0.7"/>
+              <circle id="pulseLi" cx="80" cy="140" r="3" fill="oklch(78% 0.115 205)" style="filter: drop-shadow(0 0 6px oklch(78% 0.115 205))"/>
+              <!-- R pulse marker -->
+              <circle id="pulseR" cx="320" cy="140" r="5" fill="none" stroke="oklch(78% 0.115 205 / 0.5)" stroke-width="1"/>
+            </svg>
+          </div>
+
+          <!-- Right rail -->
+          <div class="field-rail r">
+            <span class="ch">R</span>
+            <div class="led-vert" id="railR"></div>
+            <span class="db">−6</span>
+          </div>
+
+          <!-- Bottom wave: Right channel -->
+          <div class="field-wave bot">
+            <span class="label">R · WAVEFORM</span>
+            <svg viewBox="0 0 800 60" preserveAspectRatio="none">
+              <path id="waveR" d="" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="1.2" style="filter: drop-shadow(0 0 3px oklch(78% 0.115 205 / 0.5))"/>
+            </svg>
+          </div>
+
+          <!-- Spectrum strip -->
+          <div class="field-spectrum">
+            <span class="label">SPECTRUM · 20 Hz – 20 kHz</span>
+            <div class="bars" id="bars"></div>
+            <div class="freq-ticks">
+              <span>20</span><span>100</span><span>500</span><span>1k</span><span>5k</span><span>10k</span><span>20k</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="col right">
+      <!-- Envelope -->
+      <section class="panel">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port l"></div>
+        <header class="panel-header">
+          <span class="led"></span>
+          <h2 class="panel-title">Envelope</h2>
+          <span class="panel-meta">PULSE</span>
+        </header>
+        <div class="knob-row">
+          <div class="knob">
+            <div class="knob-dial">
+              <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#1a1d27" stroke-width="6"/>
+                <circle cx="50" cy="50" r="42" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="6" stroke-linecap="round" stroke-dasharray="184" stroke-dashoffset="138" transform="rotate(135 50 50)" style="filter: drop-shadow(0 0 4px oklch(78% 0.115 205 / 0.45))"/>
+              </svg>
+              <div class="disc"></div>
+              <div class="needle" style="transform: translateX(-50%) rotate(-65deg)"></div>
+            </div>
+            <div class="knob-label">Attack</div>
+            <div class="knob-value">0.012<span class="unit">s</span></div>
+          </div>
+          <div class="knob">
+            <div class="knob-dial">
+              <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#1a1d27" stroke-width="6"/>
+                <circle cx="50" cy="50" r="42" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="6" stroke-linecap="round" stroke-dasharray="184" stroke-dashoffset="74" transform="rotate(135 50 50)" style="filter: drop-shadow(0 0 4px oklch(78% 0.115 205 / 0.45))"/>
+              </svg>
+              <div class="disc"></div>
+              <div class="needle" style="transform: translateX(-50%) rotate(45deg)"></div>
+            </div>
+            <div class="knob-label">Decay</div>
+            <div class="knob-value">0.40<span class="unit">s</span></div>
+          </div>
+          <div class="knob">
+            <div class="knob-dial">
+              <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#1a1d27" stroke-width="6"/>
+                <circle cx="50" cy="50" r="42" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="6" stroke-linecap="round" stroke-dasharray="184" stroke-dashoffset="92" transform="rotate(135 50 50)" style="filter: drop-shadow(0 0 4px oklch(78% 0.115 205 / 0.45))"/>
+              </svg>
+              <div class="disc"></div>
+              <div class="needle" style="transform: translateX(-50%) rotate(0deg)"></div>
+            </div>
+            <div class="knob-label">Duty</div>
+            <div class="knob-value">0.50</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stereo -->
+      <section class="panel">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port l"></div>
+        <header class="panel-header">
+          <span class="led pulse"></span>
+          <h2 class="panel-title">Stereo Field</h2>
+          <span class="switch" id="smoothPan"><span class="track"></span><span class="lab">SMOOTH PAN</span></span>
+        </header>
+        <div class="fader-rack">
+          <div class="fader">
+            <div class="fader-tag">L</div>
+            <div class="fader-track">
+              <div class="fader-fill" style="height: 78%"></div>
+              <div class="fader-handle" style="bottom: calc(78% - 9px)"></div>
+            </div>
+            <div class="fader-value">1.00</div>
+          </div>
+          <div class="led-meter" id="meterL"></div>
+          <div class="led-meter" id="meterR"></div>
+          <div class="fader">
+            <div class="fader-tag">R</div>
+            <div class="fader-track">
+              <div class="fader-fill" style="height: 78%"></div>
+              <div class="fader-handle" style="bottom: calc(78% - 9px)"></div>
+            </div>
+            <div class="fader-value">1.00</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Export -->
+      <section class="panel">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port l"></div>
+        <header class="panel-header">
+          <span class="led dim"></span>
+          <h2 class="panel-title">Export</h2>
+          <span class="panel-meta">PCM · WAV</span>
+        </header>
+        <div class="export-row">
+          <div class="field-group">
+            <label>Duration</label>
+            <select class="select">
+              <option>30 s</option>
+              <option selected>1 minute</option>
+              <option>2 minutes</option>
+              <option>5 minutes</option>
+              <option>10 minutes</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Bit Depth</label>
+            <select class="select">
+              <option selected>16-bit PCM</option>
+              <option>24-bit PCM</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%; margin-top:12px; justify-content:center;">
+          <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2v8M5 7l3 3 3-3M3 13h10"/></svg>
+          Render WAV
+        </button>
+      </section>
+    </div>
+  </div>
+
+  <!-- Sample library strip -->
+  <section class="panel" style="margin-top: var(--gap)">
+    <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+    <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+    <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+    <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+    <div class="port t"></div>
+    <header class="panel-header">
+      <span class="led"></span>
+      <h2 class="panel-title">Sample Library</h2>
+      <span class="panel-meta">12 SOURCES</span>
+    </header>
+    <div class="lib-strip">
+      <div class="lib-meta">
+        <div class="now">NOW LOADED</div>
+        <div class="name">Forest · Dusk</div>
+        <div class="desc">Field recording · 48 kHz · 02:14</div>
+      </div>
+      <div class="lib-list">
+        <button class="lib-item is-active">
+          <svg class="lib-wave" viewBox="0 0 28 18"><path d="M1 9 q3 -7 6 0 t6 0 t6 0 t6 0 t3 0" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+          <div><div class="label">Forest · Dusk</div><div class="sub">FIELD · 02:14</div></div>
+        </button>
+        <button class="lib-item">
+          <svg class="lib-wave" viewBox="0 0 28 18"><path d="M1 9 l3 -5 l3 5 l3 -3 l3 3 l3 -6 l3 6 l3 -4 l3 4 l3 -2" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+          <div><div class="label">Rain on Glass</div><div class="sub">FIELD · 03:42</div></div>
+        </button>
+        <button class="lib-item">
+          <svg class="lib-wave" viewBox="0 0 28 18"><path d="M1 9 q1 -8 2 0 t2 0 t2 0 t2 0 t2 0 t2 0 t2 0 t2 0 t2 0 t2 0 t2 0 t2 0" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+          <div><div class="label">Tibetan Bowl</div><div class="sub">TONE · 01:08</div></div>
+        </button>
+        <button class="lib-item">
+          <svg class="lib-wave" viewBox="0 0 28 18"><path d="M1 9 l2 -2 l2 2 l2 -4 l2 4 l2 -3 l2 3 l2 -5 l2 5 l2 -2 l2 2 l2 -3 l2 3" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+          <div><div class="label">Ocean Waves</div><div class="sub">FIELD · 04:30</div></div>
+        </button>
+        <button class="lib-item">
+          <svg class="lib-wave" viewBox="0 0 28 18"><path d="M1 9 q4 -6 8 0 t8 0 t8 0" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+          <div><div class="label">Singing Bowl</div><div class="sub">TONE · 00:48</div></div>
+        </button>
+        <button class="lib-item">
+          <svg class="lib-wave" viewBox="0 0 28 18"><path d="M1 9 l1 -3 l1 3 l1 -2 l1 2 l1 -4 l1 4 l1 -3 l1 3 l1 -2 l1 2 l1 -3 l1 3 l1 -4 l1 4 l1 -2 l1 2 l1 -3 l1 3 l1 -2 l1 2 l1 -4 l1 4 l1 -1 l1 1" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+          <div><div class="label">Brown Drone</div><div class="sub">SYNTH · LOOP</div></div>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <span>NeoSynth · Browser-Native Bilateral Synthesizer</span>
+    <span>Svelte 5 · Web Audio API · MIT</span>
+  </footer>
+</div>
+
+<!-- Tweaks panel -->
+<div class="tweaks" id="tweaks">
+  <h4><span class="led"></span> Tweaks</h4>
+  <div class="tweak-row">
+    <label>Grain intensity <span id="grainVal">4.5%</span></label>
+    <input type="range" min="0" max="0.18" step="0.005" value="0.045" id="grainSlider" class="range" style="--p:25%"/>
+  </div>
+  <div style="font-family: var(--font-mono); font-size: 9px; color: var(--fg-4); margin-top:8px; text-transform: uppercase; letter-spacing: 0.14em;">
+    Click toolbar Tweaks toggle
+  </div>
+</div>
+
+<script>
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "grain": 0.045
+}/*EDITMODE-END*/;
+
+document.documentElement.style.setProperty('--grain', TWEAK_DEFAULTS.grain);
+
+// ── Tweaks contract ──────────────────────────────────
+const tweaksEl = document.getElementById('tweaks');
+const grainSlider = document.getElementById('grainSlider');
+const grainVal = document.getElementById('grainVal');
+function setGrain(v) {
+  document.documentElement.style.setProperty('--grain', v);
+  grainVal.textContent = (v * 100).toFixed(1) + '%';
+  grainSlider.value = v;
+  grainSlider.style.setProperty('--p', (v / 0.18 * 100) + '%');
+}
+setGrain(TWEAK_DEFAULTS.grain);
+grainSlider.addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  setGrain(v);
+  window.parent.postMessage({type: '__edit_mode_set_keys', edits: {grain: v}}, '*');
+});
+
+window.addEventListener('message', (e) => {
+  const d = e.data || {};
+  if (d.type === '__activate_edit_mode') tweaksEl.classList.add('show');
+  if (d.type === '__deactivate_edit_mode') tweaksEl.classList.remove('show');
+});
+window.parent.postMessage({type: '__edit_mode_available'}, '*');
+
+// ── Smooth pan switch ──────────────────────────────
+document.getElementById('smoothPan').addEventListener('click', e => {
+  e.currentTarget.classList.toggle('on');
+});
+
+// ── Rate range visual ─────────────────────────────
+const rateRange = document.getElementById('rateRange');
+rateRange.addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  e.target.style.setProperty('--p', ((v - 0.5) / 29.5 * 100) + '%');
+});
+
+// ── Build LED meters ─────────────────────────────
+function buildMeter(el, segs, lit, peakStart) {
+  for (let i = 0; i < segs; i++) {
+    const s = document.createElement('div');
+    s.className = 'seg';
+    if (i < lit) s.classList.add(i >= peakStart ? 'peak' : 'on');
+    el.appendChild(s);
+  }
+}
+buildMeter(document.getElementById('meterL'), 28, 22, 25);
+buildMeter(document.getElementById('meterR'), 28, 18, 25);
+buildMeter(document.getElementById('railL'), 22, 17, 19);
+buildMeter(document.getElementById('railR'), 22, 14, 19);
+
+// ── Spectrum bars ────────────────────────────────
+const barsEl = document.getElementById('bars');
+const heights = [22, 38, 65, 82, 70, 55, 48, 62, 78, 85, 72, 58, 44, 36, 48, 60, 52, 38, 30, 42, 55, 48, 35, 28, 22, 30, 38, 32, 24, 18, 20, 26, 22, 18, 15, 12, 14, 16, 12, 9, 8, 10, 8, 6, 5];
+heights.forEach(h => {
+  const b = document.createElement('div');
+  b.className = 'bar';
+  b.style.height = h + '%';
+  barsEl.appendChild(b);
+});
+
+// ── Field grid dots ─────────────────────────────
+const gridDots = document.getElementById('gridDots');
+for (let x = 30; x <= 380; x += 25) {
+  for (let y = 30; y <= 250; y += 25) {
+    const d = Math.hypot(x - 200, y - 140);
+    const opacity = Math.max(0, 1 - d / 180);
+    if (opacity < 0.05) continue;
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 0.9);
+    c.setAttribute('fill', `oklch(78% 0.115 205 / ${0.12 * opacity})`);
+    gridDots.appendChild(c);
+  }
+}
+
+// ── Animated waveforms + bilateral pulse ─────────
+const waveL = document.getElementById('waveL');
+const waveR = document.getElementById('waveR');
+const trail = document.getElementById('trail');
+const pulseL = document.getElementById('pulseL');
+const pulseLi = document.getElementById('pulseLi');
+const pulseR = document.getElementById('pulseR');
+
+function genWave(t, amp, phase) {
+  const pts = [];
+  for (let x = 0; x <= 800; x += 4) {
+    const u = x / 800;
+    const env = Math.exp(-Math.pow((u - ((t * 0.5 + phase) % 1)) * 6, 2)) * amp;
+    const y = 30 + Math.sin(u * 60 + t * 4) * 20 * env;
+    pts.push((x === 0 ? 'M' : 'L') + x + ' ' + y.toFixed(1));
+  }
+  return pts.join(' ');
+}
+
+let t0 = performance.now();
+function tick() {
+  const t = (performance.now() - t0) / 1000;
+  const phase = (t * 1.0) % 2;          // bilateral 1 Hz cycle for demo
+  const lActive = phase < 1;
+  const rActive = phase >= 1;
+
+  waveL.setAttribute('d', genWave(t, lActive ? 1 : 0.05, 0));
+  waveR.setAttribute('d', genWave(t, rActive ? 1 : 0.05, 0.5));
+
+  // Lissajous trail
+  let trailD = '';
+  for (let i = 0; i < 90; i++) {
+    const tt = t - i * 0.012;
+    const x = 200 + Math.sin(tt * 3.1) * 130;
+    const y = 140 + Math.sin(tt * 2.0) * 80;
+    trailD += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1);
+  }
+  trail.setAttribute('d', trailD);
+
+  // pulse markers
+  const lr = lActive ? 1 : 0.2;
+  const rr = rActive ? 1 : 0.2;
+  pulseL.setAttribute('r', 6 + lr * 6);
+  pulseL.setAttribute('opacity', 0.3 + lr * 0.6);
+  pulseLi.setAttribute('r', 2 + lr * 3);
+  pulseR.setAttribute('r', 5 + rr * 6);
+  pulseR.setAttribute('opacity', 0.3 + rr * 0.6);
+
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+
+</body>
+</html>

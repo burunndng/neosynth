@@ -1,0 +1,1734 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>NeoSynth — Bilateral Field</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────
+   NeoSynth — Bilateral Field reskin
+   Aesthetic: Output Portal × Process Audio restraint
+   Single accent (cyan), near-black surfaces, soft glow.
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces — graded near-black with a hint of cool */
+  --bg-deep:     #06070b;
+  --bg-stage:    #0a0c11;
+  --bg-panel:    #0e1016;
+  --bg-surface:  #14171f;
+  --bg-recess:   #05060a;
+
+  /* Hairlines */
+  --line:        rgba(255, 255, 255, 0.055);
+  --line-bright: rgba(255, 255, 255, 0.10);
+  --line-deep:   rgba(0, 0, 0, 0.55);
+
+  /* Type */
+  --fg:          #e9edf2;
+  --fg-2:        #a3acb9;
+  --fg-3:        #6b7585;
+  --fg-4:        #3f4856;
+
+  /* Single accent — refined cyan, used sparingly */
+  --acc:         oklch(78% 0.115 205);
+  --acc-soft:    oklch(78% 0.115 205 / 0.18);
+  --acc-faint:   oklch(78% 0.115 205 / 0.08);
+  --acc-glow:    oklch(78% 0.115 205 / 0.35);
+  --acc-dim:     oklch(58% 0.06 205);
+
+  /* Reserved for export warning state only */
+  --warn:        oklch(74% 0.13 65);
+  --warn-glow:   oklch(74% 0.13 65 / 0.35);
+
+  /* Geometry */
+  --r-lg: 14px;
+  --r-md: 10px;
+  --r-sm: 6px;
+  --gap:  18px;
+
+  /* Tweakable */
+  --grain: 0.045;
+
+  --font-ui:  'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-mono:'JetBrains Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg-deep);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.005em;
+}
+
+/* App background — very subtle radial wash + circuit grid */
+body {
+  background:
+    radial-gradient(1200px 800px at 50% 8%, rgba(34, 211, 238, 0.04) 0%, transparent 60%),
+    radial-gradient(900px 600px at 90% 90%, rgba(160, 200, 255, 0.025) 0%, transparent 60%),
+    var(--bg-deep);
+  min-height: 100svh;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-surface); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-4); }
+
+/* ── Grain overlay (inline SVG noise) ────────────────────────── */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: var(--grain);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* ── App scaffold ────────────────────────────────────────────── */
+.app {
+  position: relative;
+  z-index: 2;
+  max-width: 1640px;
+  margin: 0 auto;
+  padding: 0 28px 64px;
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 0 14px;
+  background: linear-gradient(180deg, var(--bg-deep) 60%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #1a1d27 0%, #0a0c11 100%);
+  border: 1px solid var(--line-bright);
+  display: grid;
+  place-items: center;
+  position: relative;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 4px 12px rgba(0,0,0,0.5);
+}
+.brand-mark::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 5px;
+  border: 1px solid var(--acc-soft);
+  background:
+    linear-gradient(90deg, transparent 49%, var(--acc) 49%, var(--acc) 51%, transparent 51%);
+  opacity: 0.7;
+}
+.brand-text { display: flex; flex-direction: column; line-height: 1; gap: 4px; }
+.brand-name {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.brand-sub {
+  font-size: 9.5px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--fg-3);
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-2);
+}
+.status-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--acc); box-shadow: 0 0 6px var(--acc-glow); }
+.status-bar .sep { color: var(--fg-4); }
+
+.header-actions { display: flex; align-items: center; gap: 10px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+  background: var(--bg-panel);
+  border: 1px solid var(--line-bright);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: all 160ms ease;
+  position: relative;
+}
+.btn:hover { border-color: rgba(255,255,255,0.18); background: var(--bg-surface); }
+.btn .ico { width: 14px; height: 14px; opacity: 0.85; }
+
+.btn-primary {
+  background: linear-gradient(180deg, #16191f, #0c0e13);
+  border: 1px solid var(--acc-soft);
+  color: var(--acc);
+  padding: 9px 20px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  box-shadow: 0 0 0 1px rgba(34,211,238,0.05), 0 0 18px var(--acc-faint), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.btn-primary:hover { border-color: var(--acc); box-shadow: 0 0 22px var(--acc-glow), inset 0 1px 0 rgba(255,255,255,0.05); }
+.btn-primary.is-playing {
+  color: var(--warn);
+  border-color: oklch(74% 0.13 65 / 0.4);
+  box-shadow: 0 0 0 1px oklch(74% 0.13 65 / 0.05), 0 0 18px var(--warn-glow), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+/* ── Layout grid ─────────────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(560px, 2.4fr) minmax(240px, 1fr);
+  gap: var(--gap);
+  margin-top: 6px;
+  position: relative;
+}
+.col { display: flex; flex-direction: column; gap: var(--gap); }
+
+/* ── Panel ───────────────────────────────────────────────────── */
+.panel {
+  position: relative;
+  background:
+    linear-gradient(180deg, #11141b 0%, #0a0c12 100%);
+  border: 1px solid var(--line);
+  border-top-color: var(--line-bright);
+  border-radius: var(--r-lg);
+  padding: 18px 18px 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.5),
+    0 14px 32px rgba(0,0,0,0.45);
+  isolation: isolate;
+}
+.panel::before {
+  /* very subtle accent wash from top */
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(120% 60% at 50% 0%, var(--acc-faint) 0%, transparent 60%);
+  pointer-events: none;
+  opacity: 0.6;
+  z-index: 0;
+}
+.panel > * { position: relative; z-index: 1; }
+
+/* Corner brackets — Output Portal "framed" feel */
+.bracket {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+  color: var(--acc);
+  opacity: 0.55;
+  z-index: 2;
+}
+.bracket.tl { top: 8px;    left: 8px; }
+.bracket.tr { top: 8px;    right: 8px;  transform: scaleX(-1); }
+.bracket.bl { bottom: 8px; left: 8px;   transform: scaleY(-1); }
+.bracket.br { bottom: 8px; right: 8px;  transform: scale(-1,-1); }
+.bracket svg { width: 100%; height: 100%; display: block; }
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+}
+.panel-header::after {
+  /* hairline accent underline glow */
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--acc-soft), transparent 60%);
+  filter: blur(0.5px);
+}
+.panel-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--fg-2);
+  flex: 1;
+}
+.panel-meta {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+/* LED dot */
+.led {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--acc);
+  box-shadow: 0 0 4px var(--acc-glow), 0 0 10px var(--acc-glow), inset 0 0 1px rgba(255,255,255,0.6);
+  flex-shrink: 0;
+}
+.led.dim { background: var(--acc-dim); box-shadow: none; opacity: 0.5; }
+.led.warn { background: var(--warn); box-shadow: 0 0 4px var(--warn-glow), 0 0 10px var(--warn-glow); }
+.led.pulse { animation: ledpulse 1.6s ease-in-out infinite; }
+@keyframes ledpulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* Edge ports — small notches where traces dock */
+.port {
+  position: absolute;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: radial-gradient(circle, var(--bg-deep) 0% 35%, var(--acc) 38% 60%, transparent 62%);
+  z-index: 3;
+}
+.port.l { left: -4px;  top: 50%; transform: translateY(-50%); }
+.port.r { right: -4px; top: 50%; transform: translateY(-50%); }
+.port.t { top: -4px;   left: 50%; transform: translateX(-50%); }
+.port.b { bottom: -4px;left: 50%; transform: translateX(-50%); }
+.port.dim { background: radial-gradient(circle, var(--bg-deep) 0% 35%, var(--fg-4) 38% 60%, transparent 62%); }
+
+/* ── Preset buttons / tabs ───────────────────────────────────── */
+.preset-list { display: flex; flex-direction: column; gap: 6px; }
+.preset {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 11px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--fg-2);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 140ms ease;
+  position: relative;
+}
+.preset .preset-glyph {
+  width: 16px; height: 16px;
+  display: grid; place-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+.preset .preset-tag {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--fg-4);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.preset:hover { border-color: var(--line-bright); color: var(--fg); background: rgba(255,255,255,0.015); }
+.preset.is-active {
+  border-color: var(--acc-soft);
+  color: var(--acc);
+  background: var(--acc-faint);
+  box-shadow: inset 0 0 12px var(--acc-faint);
+}
+.preset.is-active::before {
+  content: '';
+  position: absolute;
+  left: -1px; top: 8px; bottom: 8px;
+  width: 2px;
+  background: var(--acc);
+  box-shadow: 0 0 6px var(--acc-glow);
+  border-radius: 2px;
+}
+.preset.is-active .preset-glyph,
+.preset.is-active .preset-tag { color: var(--acc); }
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.preset.compact {
+  flex-direction: column;
+  align-items: stretch;
+  text-align: center;
+  gap: 4px;
+  padding: 9px 8px;
+}
+.preset.compact .preset-glyph {
+  width: 100%;
+  font-size: 10.5px;
+  color: var(--fg-2);
+}
+.preset.compact .preset-tag { margin: 0; font-size: 8.5px; }
+
+/* ── Knob ────────────────────────────────────────────────────── */
+.knob-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: end; }
+.knob-row.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.knob-row.cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+.knob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  user-select: none;
+}
+.knob-dial {
+  position: relative;
+  width: 72px; height: 72px;
+}
+.knob-dial.lg { width: 92px; height: 92px; }
+.knob-dial.sm { width: 56px; height: 56px; }
+.knob-dial svg { display: block; width: 100%; height: 100%; }
+.knob-dial .disc {
+  position: absolute;
+  inset: 14%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, #20242e 0%, #0d1015 70%, #07090d 100%);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 -2px 4px rgba(0,0,0,0.6),
+    0 2px 6px rgba(0,0,0,0.6);
+}
+.knob-dial.lg .disc { inset: 16%; }
+.knob-dial .needle {
+  position: absolute;
+  left: 50%;
+  top: 14%;
+  width: 2px;
+  height: 18%;
+  background: var(--acc);
+  border-radius: 2px;
+  transform-origin: 50% 250%;
+  box-shadow: 0 0 4px var(--acc-glow);
+}
+.knob-dial.lg .needle { top: 16%; height: 18%; transform-origin: 50% 240%; }
+.knob-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--fg-2);
+  text-align: center;
+}
+.knob-value {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg);
+  text-align: center;
+  background: var(--bg-recess);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  min-width: 56px;
+}
+.knob-value .unit { color: var(--fg-3); margin-left: 2px; }
+
+/* ── Fader (for stereo gains) ────────────────────────────────── */
+.fader-rack { display: flex; gap: 22px; justify-content: center; align-items: flex-end; padding: 6px 0; }
+.fader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.fader-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--acc);
+  background: var(--bg-recess);
+  border: 1px solid var(--acc-soft);
+  border-radius: 3px;
+  padding: 2px 8px;
+  letter-spacing: 0.1em;
+}
+.fader-tag.dim { color: var(--fg-3); border-color: var(--line); }
+.fader-track {
+  position: relative;
+  width: 28px;
+  height: 168px;
+  background: var(--bg-recess);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.7);
+}
+.fader-fill {
+  position: absolute;
+  left: 4px; right: 4px; bottom: 4px;
+  background: linear-gradient(180deg, var(--acc) 0%, var(--acc-dim) 100%);
+  border-radius: 3px;
+  box-shadow: 0 0 8px var(--acc-glow);
+  opacity: 0.35;
+}
+.fader-ticks {
+  position: absolute;
+  left: -8px; top: 0; bottom: 0;
+  display: flex; flex-direction: column; justify-content: space-between;
+  pointer-events: none;
+}
+.fader-ticks span {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--fg-4);
+  line-height: 1;
+}
+.fader-handle {
+  position: absolute;
+  left: -2px; right: -2px;
+  height: 18px;
+  background: linear-gradient(180deg, #2a2f3b 0%, #14171f 50%, #0a0c11 100%);
+  border: 1px solid var(--line-bright);
+  border-radius: 3px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.08);
+  cursor: ns-resize;
+}
+.fader-handle::before {
+  content: '';
+  position: absolute;
+  left: 6px; right: 6px;
+  top: 50%;
+  height: 1px;
+  background: var(--acc);
+  box-shadow: 0 0 4px var(--acc-glow);
+  transform: translateY(-50%);
+}
+.fader-handle::after {
+  content: '';
+  position: absolute;
+  left: 8px; right: 8px;
+  top: 4px;
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(0,0,0,0.4);
+}
+.fader-value {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg);
+  background: var(--bg-recess);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 8px;
+  min-width: 40px;
+  text-align: center;
+}
+
+/* Segmented LED meter (right of fader) */
+.led-meter {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 1px;
+  width: 6px;
+  height: 168px;
+  padding: 2px;
+  background: var(--bg-recess);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.led-meter .seg {
+  flex: 1;
+  background: var(--fg-4);
+  border-radius: 1px;
+  opacity: 0.18;
+}
+.led-meter .seg.on { background: var(--acc); opacity: 0.85; box-shadow: 0 0 3px var(--acc-glow); }
+.led-meter .seg.peak { background: var(--warn); opacity: 0.9; box-shadow: 0 0 3px var(--warn-glow); }
+
+/* ── Carrier chip buttons (waves / noise / sample) ───────────── */
+.chip-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chip-section-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--fg-3);
+}
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  background: var(--bg-recess);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-2);
+  cursor: pointer;
+  transition: all 140ms ease;
+  position: relative;
+}
+.chip svg { width: 13px; height: 13px; opacity: 0.7; }
+.chip:hover { border-color: var(--line-bright); color: var(--fg); }
+.chip.is-active {
+  background: var(--acc-faint);
+  border-color: var(--acc-soft);
+  color: var(--acc);
+  box-shadow: inset 0 0 10px var(--acc-faint);
+}
+.chip.is-active svg { opacity: 1; }
+.chip.is-active::before {
+  content: '';
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--acc);
+  box-shadow: 0 0 4px var(--acc-glow);
+}
+
+/* ── Range / slider (rate sweep) ─────────────────────────────── */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+.range::-webkit-slider-runnable-track {
+  height: 4px;
+  background: linear-gradient(90deg, var(--acc) 0%, var(--acc) var(--p, 50%), var(--bg-surface) var(--p, 50%));
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.6);
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #20242e, #0a0c11);
+  border: 1px solid var(--acc);
+  margin-top: -5px;
+  box-shadow: 0 0 8px var(--acc-glow), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+.range::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: linear-gradient(180deg, #20242e, #0a0c11);
+  border: 1px solid var(--acc);
+  box-shadow: 0 0 8px var(--acc-glow);
+}
+
+/* ── Big rate readout ────────────────────────────────────────── */
+.rate-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  margin: 12px 0 6px;
+  padding: 10px;
+  background: var(--bg-recess);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  position: relative;
+}
+.rate-readout::after {
+  content: ''; position: absolute; left: 8px; right: 8px; top: 4px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--acc-soft), transparent);
+}
+.rate-readout .num {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 500;
+  color: var(--acc);
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 12px var(--acc-glow);
+  font-variant-numeric: tabular-nums;
+}
+.rate-readout .unit {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+/* ── Bilateral Field — centerpiece ───────────────────────────── */
+.field {
+  padding: 0;
+  overflow: hidden;
+}
+.field-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+}
+.field-header::after {
+  content: '';
+  position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  background: linear-gradient(90deg, var(--acc-soft), transparent 50%, var(--acc-soft));
+  filter: blur(0.5px);
+}
+.field-header .title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--fg);
+}
+.field-header .pretitle {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+.field-header .hz {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  color: var(--acc);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 10px var(--acc-glow);
+}
+.field-header .hz .small { font-size: 10px; color: var(--fg-3); margin-left: 4px; }
+
+.field-body {
+  display: grid;
+  grid-template-columns: 28px 1fr 28px;
+  grid-template-rows: 60px 1fr 60px 80px;
+  gap: 0;
+  padding: 14px 16px 16px;
+}
+
+/* Edge waveform strips */
+.field-wave {
+  grid-column: 2;
+  background: var(--bg-recess);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+}
+.field-wave.top { grid-row: 1; margin-bottom: 8px; }
+.field-wave.bot { grid-row: 3; margin-top: 8px; }
+.field-wave .label {
+  position: absolute;
+  top: 6px; left: 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+.field-wave svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Side meter rails (L/R levels) */
+.field-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  background: var(--bg-recess);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.field-rail.l { grid-column: 1; grid-row: 2; margin-right: 8px; }
+.field-rail.r { grid-column: 3; grid-row: 2; margin-left: 8px; }
+.field-rail .ch {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-3);
+  font-weight: 600;
+}
+.field-rail .led-vert {
+  flex: 1;
+  width: 6px;
+  margin: 6px 0;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 1px;
+}
+.field-rail .led-vert .seg {
+  flex: 1;
+  background: var(--fg-4);
+  opacity: 0.18;
+  border-radius: 1px;
+}
+.field-rail .led-vert .seg.on { background: var(--acc); opacity: 0.8; }
+.field-rail .led-vert .seg.peak { background: var(--warn); }
+.field-rail .db {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--fg-4);
+}
+
+/* XY field (center) */
+.field-xy {
+  grid-column: 2; grid-row: 2;
+  position: relative;
+  background:
+    radial-gradient(ellipse at center, var(--acc-faint) 0%, transparent 60%),
+    var(--bg-recess);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 280px;
+}
+.field-xy svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.field-xy .axis-l { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-family: var(--font-mono); font-size: 9px; color: var(--fg-4); letter-spacing: 0.2em; }
+.field-xy .axis-r { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-family: var(--font-mono); font-size: 9px; color: var(--fg-4); letter-spacing: 0.2em; }
+.field-xy .axis-t { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-family: var(--font-mono); font-size: 9px; color: var(--fg-4); letter-spacing: 0.2em; }
+.field-xy .axis-b { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-family: var(--font-mono); font-size: 9px; color: var(--fg-4); letter-spacing: 0.2em; }
+
+/* Spectrum strip below */
+.field-spectrum {
+  grid-column: 1 / -1; grid-row: 4;
+  margin-top: 10px;
+  background: var(--bg-recess);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+}
+.field-spectrum .label {
+  position: absolute;
+  top: 6px; left: 10px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  z-index: 2;
+}
+.field-spectrum .freq-ticks {
+  position: absolute;
+  bottom: 4px; left: 0; right: 0;
+  display: flex; justify-content: space-between;
+  padding: 0 10px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--fg-4);
+}
+.field-spectrum .bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 18px 10px 14px;
+  width: 100%;
+  height: 100%;
+}
+.field-spectrum .bar {
+  flex: 1;
+  background: linear-gradient(180deg, var(--acc) 0%, oklch(60% 0.07 205) 100%);
+  border-radius: 1px 1px 0 0;
+  box-shadow: 0 0 4px var(--acc-glow);
+  opacity: 0.85;
+  min-height: 2px;
+}
+
+/* ── Sample library strip ────────────────────────────────────── */
+.lib-strip {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 18px;
+  align-items: stretch;
+}
+.lib-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+.lib-meta .now {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+.lib-meta .name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+}
+.lib-meta .desc {
+  font-size: 11px;
+  color: var(--fg-3);
+}
+.lib-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+.lib-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-recess);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all 140ms ease;
+  text-align: left;
+}
+.lib-item:hover { border-color: var(--line-bright); }
+.lib-item.is-active { border-color: var(--acc-soft); background: var(--acc-faint); }
+.lib-item .lib-wave {
+  width: 28px; height: 18px; flex-shrink: 0;
+  color: var(--fg-3);
+}
+.lib-item.is-active .lib-wave { color: var(--acc); }
+.lib-item .label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--fg);
+  margin-bottom: 2px;
+}
+.lib-item .sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--fg-4);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ── Export panel ────────────────────────────────────────────── */
+.export-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 14px;
+  align-items: end;
+}
+.field-group {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.field-group label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--fg-3);
+}
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--bg-recess);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 9px 28px 9px 12px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 4l3 3 3-3' stroke='%236b7585' stroke-width='1.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+.select:focus { outline: none; border-color: var(--acc); box-shadow: 0 0 0 1px var(--acc-soft); }
+
+/* Toggle switch (Smooth Pan) */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.switch .track {
+  width: 26px; height: 14px; border-radius: 999px;
+  background: var(--bg-recess);
+  border: 1px solid var(--line);
+  position: relative;
+  transition: all 160ms ease;
+}
+.switch .track::after {
+  content: '';
+  position: absolute;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--fg-3);
+  top: 2px; left: 2px;
+  transition: all 160ms ease;
+}
+.switch.on .track { background: var(--acc-faint); border-color: var(--acc-soft); }
+.switch.on .track::after { background: var(--acc); left: 14px; box-shadow: 0 0 4px var(--acc-glow); }
+.switch .lab {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--fg-3);
+}
+
+/* ── Hairline circuit traces overlay ─────────────────────────── */
+.traces {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 4;
+}
+.traces path {
+  stroke: var(--acc);
+  stroke-width: 1;
+  fill: none;
+  opacity: 0.18;
+}
+.traces path.dim { opacity: 0.08; stroke: var(--fg-3); }
+.traces path.flow {
+  stroke-dasharray: 4 8;
+  animation: flow 1.4s linear infinite;
+  opacity: 0.5;
+}
+@keyframes flow { to { stroke-dashoffset: -36; } }
+
+/* ── Footer ──────────────────────────────────────────────────── */
+.footer {
+  margin-top: 28px;
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+/* ── Tweaks panel ────────────────────────────────────────────── */
+.tweaks {
+  position: fixed;
+  right: 22px; bottom: 22px;
+  z-index: 100;
+  width: 260px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line-bright);
+  border-radius: var(--r-md);
+  padding: 14px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.7);
+  display: none;
+}
+.tweaks.show { display: block; }
+.tweaks h4 {
+  margin: 0 0 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--fg-2);
+  display: flex; align-items: center; gap: 8px;
+}
+.tweaks .tweak-row { margin-bottom: 12px; }
+.tweaks label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin-bottom: 6px;
+  display: flex; justify-content: space-between;
+}
+.tweaks label span { color: var(--fg); }
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 1fr 1fr; }
+  .layout > .col.center { grid-column: 1 / -1; order: -1; }
+  .field-body { grid-template-rows: 50px 1fr 50px 70px; }
+  .field-xy { min-height: 220px; }
+}
+@media (max-width: 720px) {
+  .layout { grid-template-columns: 1fr; }
+  .lib-strip { grid-template-columns: 1fr; }
+  .export-row { grid-template-columns: 1fr 1fr; }
+  .export-row .btn-primary { grid-column: 1 / -1; }
+  .traces { display: none; }
+}
+
+</style>
+<template id="__bundler_thumbnail" data-bg-color="#06070b">
+  <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg">
+    <!-- Panel grid silhouette -->
+    <rect x="4" y="12" width="22" height="56" rx="2" fill="#0e1016" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+    <rect x="30" y="12" width="56" height="56" rx="2" fill="#0e1016" stroke="rgba(34,211,238,0.3)" stroke-width="0.5"/>
+    <rect x="90" y="12" width="26" height="56" rx="2" fill="#0e1016" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+    <!-- Center field glow -->
+    <ellipse cx="58" cy="40" rx="22" ry="18" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="0.6" opacity="0.4"/>
+    <!-- Lissajous hint -->
+    <path d="M 44 40 Q 50 28 58 40 Q 66 52 72 40" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="1" opacity="0.8"/>
+    <!-- pulse dots -->
+    <circle cx="44" cy="40" r="2.5" fill="oklch(78% 0.115 205)" opacity="0.9"/>
+    <circle cx="72" cy="40" r="1.5" fill="oklch(78% 0.115 205)" opacity="0.5"/>
+    <!-- header bar -->
+    <rect x="4" y="4" width="112" height="6" rx="1.5" fill="#0e1016" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
+    <circle cx="8" cy="7" r="1.2" fill="oklch(78% 0.115 205)" opacity="0.9"/>
+  </svg>
+</template>
+</head>
+<body>
+<div class="grain-overlay" id="grain"></div>
+
+<div class="app">
+  <!-- Header -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-text">
+        <div class="brand-name">NeoSynth</div>
+        <div class="brand-sub">Bilateral · Isochronic · v0.4</div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span class="dot"></span>
+      <span>ENGINE</span>
+      <span class="sep">·</span>
+      <span>44.1 kHz</span>
+      <span class="sep">·</span>
+      <span>STEREO</span>
+      <span class="sep">·</span>
+      <span>LATENCY 12 ms</span>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 10V3M5 6l3-3 3 3M3 12h10"/></svg>
+        Upload
+      </button>
+      <button class="btn">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 5v3M8 10.5v.5"/></svg>
+        Info
+      </button>
+      <button class="btn btn-primary is-playing" id="playBtn">
+        <svg class="ico" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="2" width="3" height="8" rx="0.5"/><rect x="7" y="2" width="3" height="8" rx="0.5"/></svg>
+        Stop
+      </button>
+    </div>
+  </header>
+
+  <!-- Hairline traces overlay (background of layout) -->
+  <div class="layout">
+    <svg class="traces" viewBox="0 0 1640 760" preserveAspectRatio="none" aria-hidden="true">
+      <!-- Left column → Field left edge -->
+      <path d="M 280 120 L 320 120 L 320 380 L 410 380" />
+      <path d="M 280 320 L 340 320 L 340 380 L 410 380" />
+      <path class="flow" d="M 280 540 L 360 540 L 360 380 L 410 380" />
+      <!-- Field right edge → right column -->
+      <path d="M 1130 380 L 1180 380 L 1180 120 L 1360 120" />
+      <path d="M 1130 380 L 1200 380 L 1200 320 L 1360 320" />
+      <path class="flow" d="M 1130 380 L 1220 380 L 1220 540 L 1360 540" />
+      <!-- Bottom: field → sample library -->
+      <path d="M 770 700 L 770 730" />
+    </svg>
+
+    <!-- LEFT COLUMN -->
+    <div class="col left">
+      <!-- Pattern -->
+      <section class="panel">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port r dim"></div>
+        <header class="panel-header">
+          <span class="led pulse"></span>
+          <h2 class="panel-title">Pattern</h2>
+          <span class="panel-meta">EMDR</span>
+        </header>
+        <div class="preset-list">
+          <button class="preset is-active"><span class="preset-glyph">⇄</span>Pure Alternation<span class="preset-tag">L · R</span></button>
+          <button class="preset"><span class="preset-glyph">⟷</span>Mirrored Overlap<span class="preset-tag">L+R</span></button>
+          <button class="preset"><span class="preset-glyph">≠</span>Asymmetric<span class="preset-tag">DUAL</span></button>
+          <button class="preset"><span class="preset-glyph">⋯</span>Clustered<span class="preset-tag">BURST</span></button>
+          <button class="preset"><span class="preset-glyph">⚡</span>Randomized<span class="preset-tag">STO</span></button>
+        </div>
+      </section>
+
+      <!-- Rate -->
+      <section class="panel">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port r dim"></div>
+        <header class="panel-header">
+          <span class="led"></span>
+          <h2 class="panel-title">Rate</h2>
+          <span class="panel-meta">BAND · ALPHA</span>
+        </header>
+        <div class="preset-grid">
+          <button class="preset compact"><span class="preset-glyph">Δ Delta</span><span class="preset-tag">0.5–3</span></button>
+          <button class="preset compact"><span class="preset-glyph">Θ Theta</span><span class="preset-tag">4–7</span></button>
+          <button class="preset compact is-active"><span class="preset-glyph">Α Alpha</span><span class="preset-tag">8–12</span></button>
+          <button class="preset compact"><span class="preset-glyph">Β Beta</span><span class="preset-tag">13–30</span></button>
+          <button class="preset compact" style="grid-column: 1 / -1;"><span class="preset-glyph">EMDR</span><span class="preset-tag">1–3</span></button>
+        </div>
+        <div class="rate-readout">
+          <span class="num">10.0</span>
+          <span class="unit">Hz</span>
+        </div>
+        <input type="range" min="0.5" max="30" step="0.1" value="10" class="range" id="rateRange" style="--p:32%" />
+      </section>
+
+      <!-- Carriers -->
+      <section class="panel">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port r"></div>
+        <header class="panel-header">
+          <span class="led pulse"></span>
+          <h2 class="panel-title">Carriers</h2>
+          <span class="panel-meta">2 ACTIVE</span>
+        </header>
+
+        <div class="chip-group">
+          <div>
+            <div class="chip-section-label">Waves</div>
+            <div class="chip-row" style="margin-top:8px;">
+              <button class="chip is-active">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 8q2-5 4 0t4 0 4 0 3 0"/></svg>
+                Sine
+              </button>
+              <button class="chip">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 12V4h4v8h4V4h4v8h2"/></svg>
+                Square
+              </button>
+              <button class="chip">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 12L5 4l5 8 5-8"/></svg>
+                Saw
+              </button>
+              <button class="chip">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 8l3-4 4 8 4-8 3 4"/></svg>
+                Tri
+              </button>
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <div class="chip-section-label">Noise</div>
+            <div class="chip-row" style="margin-top:8px;">
+              <button class="chip">White</button>
+              <button class="chip is-active">Pink</button>
+              <button class="chip">Brown</button>
+              <button class="chip">B.Lim</button>
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <div class="chip-section-label">Sample</div>
+            <div class="chip-row" style="margin-top:8px;">
+              <button class="chip">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M6 6v4M10 6v4"/></svg>
+                Sound Sample
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:18px; padding-top:14px; border-top:1px solid var(--line);">
+          <div class="knob-row cols-2">
+            <div class="knob">
+              <div class="knob-dial">
+                <svg viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="#1a1d27" stroke-width="6" />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="6" stroke-linecap="round" stroke-dasharray="184" stroke-dashoffset="92" transform="rotate(135 50 50)" style="filter: drop-shadow(0 0 4px oklch(78% 0.115 205 / 0.45))"/>
+                </svg>
+                <div class="disc"></div>
+                <div class="needle" style="transform: translateX(-50%) rotate(45deg)"></div>
+              </div>
+              <div class="knob-label">Frequency</div>
+              <div class="knob-value">440<span class="unit">Hz</span></div>
+            </div>
+            <div class="knob">
+              <div class="knob-dial">
+                <svg viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="#1a1d27" stroke-width="6" />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="6" stroke-linecap="round" stroke-dasharray="184" stroke-dashoffset="46" transform="rotate(135 50 50)" style="filter: drop-shadow(0 0 4px oklch(78% 0.115 205 / 0.45))"/>
+                </svg>
+                <div class="disc"></div>
+                <div class="needle" style="transform: translateX(-50%) rotate(95deg)"></div>
+              </div>
+              <div class="knob-label">Cutoff</div>
+              <div class="knob-value">2.4<span class="unit">kHz</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- CENTER — BILATERAL FIELD -->
+    <div class="col center">
+      <section class="panel field">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port l"></div>
+        <div class="port r"></div>
+        <div class="port b"></div>
+
+        <div class="field-header">
+          <span class="led pulse"></span>
+          <span class="pretitle">FIELD ·</span>
+          <span class="title">BILATERAL · METER BRIDGE</span>
+          <span class="hz">10.00 <span class="small">Hz</span></span>
+        </div>
+
+        <div class="field-body">
+          <!-- Top wave: Left channel -->
+          <div class="field-wave top">
+            <span class="label">L · WAVEFORM</span>
+            <svg viewBox="0 0 800 60" preserveAspectRatio="none">
+              <path id="waveL" d="" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="1.2" style="filter: drop-shadow(0 0 3px oklch(78% 0.115 205 / 0.5))"/>
+            </svg>
+          </div>
+
+          <!-- Left rail -->
+          <div class="field-rail l">
+            <span class="ch">L</span>
+            <div class="led-vert" id="railL"></div>
+            <span class="db">−6</span>
+          </div>
+
+          <!-- XY field -->
+          <div class="field-xy">
+            <div class="axis-l">L</div>
+            <div class="axis-r">R</div>
+            <div class="axis-t">DEPTH</div>
+            <div class="axis-b">RATE</div>
+            <svg viewBox="0 0 400 280" preserveAspectRatio="xMidYMid meet">
+              <!-- crosshair -->
+              <line x1="200" y1="20" x2="200" y2="130" stroke="oklch(78% 0.115 205 / 0.18)" stroke-width="0.6" stroke-dasharray="2 4"/>
+              <line x1="200" y1="150" x2="200" y2="260" stroke="oklch(78% 0.115 205 / 0.18)" stroke-width="0.6" stroke-dasharray="2 4"/>
+              <line x1="20"  y1="140" x2="190" y2="140" stroke="oklch(78% 0.115 205 / 0.18)" stroke-width="0.6" stroke-dasharray="2 4"/>
+              <line x1="210" y1="140" x2="380" y2="140" stroke="oklch(78% 0.115 205 / 0.18)" stroke-width="0.6" stroke-dasharray="2 4"/>
+              <!-- grid dots -->
+              <g fill="oklch(78% 0.115 205 / 0.15)" id="gridDots"></g>
+              <!-- bilateral lissajous trail -->
+              <path id="trail" d="" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="1.4" stroke-linecap="round" style="filter: drop-shadow(0 0 6px oklch(78% 0.115 205 / 0.7))"/>
+              <!-- L pulse marker -->
+              <circle id="pulseL" cx="80" cy="140" r="7" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="1.2" opacity="0.7"/>
+              <circle id="pulseLi" cx="80" cy="140" r="3" fill="oklch(78% 0.115 205)" style="filter: drop-shadow(0 0 6px oklch(78% 0.115 205))"/>
+              <!-- R pulse marker -->
+              <circle id="pulseR" cx="320" cy="140" r="5" fill="none" stroke="oklch(78% 0.115 205 / 0.5)" stroke-width="1"/>
+            </svg>
+          </div>
+
+          <!-- Right rail -->
+          <div class="field-rail r">
+            <span class="ch">R</span>
+            <div class="led-vert" id="railR"></div>
+            <span class="db">−6</span>
+          </div>
+
+          <!-- Bottom wave: Right channel -->
+          <div class="field-wave bot">
+            <span class="label">R · WAVEFORM</span>
+            <svg viewBox="0 0 800 60" preserveAspectRatio="none">
+              <path id="waveR" d="" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="1.2" style="filter: drop-shadow(0 0 3px oklch(78% 0.115 205 / 0.5))"/>
+            </svg>
+          </div>
+
+          <!-- Spectrum strip -->
+          <div class="field-spectrum">
+            <span class="label">SPECTRUM · 20 Hz – 20 kHz</span>
+            <div class="bars" id="bars"></div>
+            <div class="freq-ticks">
+              <span>20</span><span>100</span><span>500</span><span>1k</span><span>5k</span><span>10k</span><span>20k</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="col right">
+      <!-- Envelope -->
+      <section class="panel">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port l"></div>
+        <header class="panel-header">
+          <span class="led"></span>
+          <h2 class="panel-title">Envelope</h2>
+          <span class="panel-meta">PULSE</span>
+        </header>
+        <div class="knob-row">
+          <div class="knob">
+            <div class="knob-dial">
+              <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#1a1d27" stroke-width="6"/>
+                <circle cx="50" cy="50" r="42" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="6" stroke-linecap="round" stroke-dasharray="184" stroke-dashoffset="138" transform="rotate(135 50 50)" style="filter: drop-shadow(0 0 4px oklch(78% 0.115 205 / 0.45))"/>
+              </svg>
+              <div class="disc"></div>
+              <div class="needle" style="transform: translateX(-50%) rotate(-65deg)"></div>
+            </div>
+            <div class="knob-label">Attack</div>
+            <div class="knob-value">0.012<span class="unit">s</span></div>
+          </div>
+          <div class="knob">
+            <div class="knob-dial">
+              <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#1a1d27" stroke-width="6"/>
+                <circle cx="50" cy="50" r="42" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="6" stroke-linecap="round" stroke-dasharray="184" stroke-dashoffset="74" transform="rotate(135 50 50)" style="filter: drop-shadow(0 0 4px oklch(78% 0.115 205 / 0.45))"/>
+              </svg>
+              <div class="disc"></div>
+              <div class="needle" style="transform: translateX(-50%) rotate(45deg)"></div>
+            </div>
+            <div class="knob-label">Decay</div>
+            <div class="knob-value">0.40<span class="unit">s</span></div>
+          </div>
+          <div class="knob">
+            <div class="knob-dial">
+              <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#1a1d27" stroke-width="6"/>
+                <circle cx="50" cy="50" r="42" fill="none" stroke="oklch(78% 0.115 205)" stroke-width="6" stroke-linecap="round" stroke-dasharray="184" stroke-dashoffset="92" transform="rotate(135 50 50)" style="filter: drop-shadow(0 0 4px oklch(78% 0.115 205 / 0.45))"/>
+              </svg>
+              <div class="disc"></div>
+              <div class="needle" style="transform: translateX(-50%) rotate(0deg)"></div>
+            </div>
+            <div class="knob-label">Duty</div>
+            <div class="knob-value">0.50</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stereo -->
+      <section class="panel">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port l"></div>
+        <header class="panel-header">
+          <span class="led pulse"></span>
+          <h2 class="panel-title">Stereo Field</h2>
+          <span class="switch" id="smoothPan"><span class="track"></span><span class="lab">SMOOTH PAN</span></span>
+        </header>
+        <div class="fader-rack">
+          <div class="fader">
+            <div class="fader-tag">L</div>
+            <div class="fader-track">
+              <div class="fader-fill" style="height: 78%"></div>
+              <div class="fader-handle" style="bottom: calc(78% - 9px)"></div>
+            </div>
+            <div class="fader-value">1.00</div>
+          </div>
+          <div class="led-meter" id="meterL"></div>
+          <div class="led-meter" id="meterR"></div>
+          <div class="fader">
+            <div class="fader-tag">R</div>
+            <div class="fader-track">
+              <div class="fader-fill" style="height: 78%"></div>
+              <div class="fader-handle" style="bottom: calc(78% - 9px)"></div>
+            </div>
+            <div class="fader-value">1.00</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Export -->
+      <section class="panel">
+        <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+        <div class="port l"></div>
+        <header class="panel-header">
+          <span class="led dim"></span>
+          <h2 class="panel-title">Export</h2>
+          <span class="panel-meta">PCM · WAV</span>
+        </header>
+        <div class="export-row">
+          <div class="field-group">
+            <label>Duration</label>
+            <select class="select">
+              <option>30 s</option>
+              <option selected>1 minute</option>
+              <option>2 minutes</option>
+              <option>5 minutes</option>
+              <option>10 minutes</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Bit Depth</label>
+            <select class="select">
+              <option selected>16-bit PCM</option>
+              <option>24-bit PCM</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%; margin-top:12px; justify-content:center;">
+          <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2v8M5 7l3 3 3-3M3 13h10"/></svg>
+          Render WAV
+        </button>
+      </section>
+    </div>
+  </div>
+
+  <!-- Sample library strip -->
+  <section class="panel" style="margin-top: var(--gap)">
+    <div class="bracket tl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+    <div class="bracket tr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+    <div class="bracket bl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+    <div class="bracket br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M0 4V0h4"/></svg></div>
+    <div class="port t"></div>
+    <header class="panel-header">
+      <span class="led"></span>
+      <h2 class="panel-title">Sample Library</h2>
+      <span class="panel-meta">12 SOURCES</span>
+    </header>
+    <div class="lib-strip">
+      <div class="lib-meta">
+        <div class="now">NOW LOADED</div>
+        <div class="name">Forest · Dusk</div>
+        <div class="desc">Field recording · 48 kHz · 02:14</div>
+      </div>
+      <div class="lib-list">
+        <button class="lib-item is-active">
+          <svg class="lib-wave" viewBox="0 0 28 18"><path d="M1 9 q3 -7 6 0 t6 0 t6 0 t6 0 t3 0" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+          <div><div class="label">Forest · Dusk</div><div class="sub">FIELD · 02:14</div></div>
+        </button>
+        <button class="lib-item">
+          <svg class="lib-wave" viewBox="0 0 28 18"><path d="M1 9 l3 -5 l3 5 l3 -3 l3 3 l3 -6 l3 6 l3 -4 l3 4 l3 -2" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+          <div><div class="label">Rain on Glass</div><div class="sub">FIELD · 03:42</div></div>
+        </button>
+        <button class="lib-item">
+          <svg class="lib-wave" viewBox="0 0 28 18"><path d="M1 9 q1 -8 2 0 t2 0 t2 0 t2 0 t2 0 t2 0 t2 0 t2 0 t2 0 t2 0 t2 0 t2 0" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+          <div><div class="label">Tibetan Bowl</div><div class="sub">TONE · 01:08</div></div>
+        </button>
+        <button class="lib-item">
+          <svg class="lib-wave" viewBox="0 0 28 18"><path d="M1 9 l2 -2 l2 2 l2 -4 l2 4 l2 -3 l2 3 l2 -5 l2 5 l2 -2 l2 2 l2 -3 l2 3" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+          <div><div class="label">Ocean Waves</div><div class="sub">FIELD · 04:30</div></div>
+        </button>
+        <button class="lib-item">
+          <svg class="lib-wave" viewBox="0 0 28 18"><path d="M1 9 q4 -6 8 0 t8 0 t8 0" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+          <div><div class="label">Singing Bowl</div><div class="sub">TONE · 00:48</div></div>
+        </button>
+        <button class="lib-item">
+          <svg class="lib-wave" viewBox="0 0 28 18"><path d="M1 9 l1 -3 l1 3 l1 -2 l1 2 l1 -4 l1 4 l1 -3 l1 3 l1 -2 l1 2 l1 -3 l1 3 l1 -4 l1 4 l1 -2 l1 2 l1 -3 l1 3 l1 -2 l1 2 l1 -4 l1 4 l1 -1 l1 1" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+          <div><div class="label">Brown Drone</div><div class="sub">SYNTH · LOOP</div></div>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <span>NeoSynth · Browser-Native Bilateral Synthesizer</span>
+    <span>Svelte 5 · Web Audio API · MIT</span>
+  </footer>
+</div>
+
+<!-- Tweaks panel -->
+<div class="tweaks" id="tweaks">
+  <h4><span class="led"></span> Tweaks</h4>
+  <div class="tweak-row">
+    <label>Grain intensity <span id="grainVal">4.5%</span></label>
+    <input type="range" min="0" max="0.18" step="0.005" value="0.045" id="grainSlider" class="range" style="--p:25%"/>
+  </div>
+  <div style="font-family: var(--font-mono); font-size: 9px; color: var(--fg-4); margin-top:8px; text-transform: uppercase; letter-spacing: 0.14em;">
+    Click toolbar Tweaks toggle
+  </div>
+</div>
+
+<script>
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "grain": 0.045
+}/*EDITMODE-END*/;
+
+document.documentElement.style.setProperty('--grain', TWEAK_DEFAULTS.grain);
+
+// ── Tweaks contract ──────────────────────────────────
+const tweaksEl = document.getElementById('tweaks');
+const grainSlider = document.getElementById('grainSlider');
+const grainVal = document.getElementById('grainVal');
+function setGrain(v) {
+  document.documentElement.style.setProperty('--grain', v);
+  grainVal.textContent = (v * 100).toFixed(1) + '%';
+  grainSlider.value = v;
+  grainSlider.style.setProperty('--p', (v / 0.18 * 100) + '%');
+}
+setGrain(TWEAK_DEFAULTS.grain);
+grainSlider.addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  setGrain(v);
+  window.parent.postMessage({type: '__edit_mode_set_keys', edits: {grain: v}}, '*');
+});
+
+window.addEventListener('message', (e) => {
+  const d = e.data || {};
+  if (d.type === '__activate_edit_mode') tweaksEl.classList.add('show');
+  if (d.type === '__deactivate_edit_mode') tweaksEl.classList.remove('show');
+});
+window.parent.postMessage({type: '__edit_mode_available'}, '*');
+
+// ── Smooth pan switch ──────────────────────────────
+document.getElementById('smoothPan').addEventListener('click', e => {
+  e.currentTarget.classList.toggle('on');
+});
+
+// ── Rate range visual ─────────────────────────────
+const rateRange = document.getElementById('rateRange');
+rateRange.addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  e.target.style.setProperty('--p', ((v - 0.5) / 29.5 * 100) + '%');
+});
+
+// ── Build LED meters ─────────────────────────────
+function buildMeter(el, segs, lit, peakStart) {
+  for (let i = 0; i < segs; i++) {
+    const s = document.createElement('div');
+    s.className = 'seg';
+    if (i < lit) s.classList.add(i >= peakStart ? 'peak' : 'on');
+    el.appendChild(s);
+  }
+}
+buildMeter(document.getElementById('meterL'), 28, 22, 25);
+buildMeter(document.getElementById('meterR'), 28, 18, 25);
+buildMeter(document.getElementById('railL'), 22, 17, 19);
+buildMeter(document.getElementById('railR'), 22, 14, 19);
+
+// ── Spectrum bars ────────────────────────────────
+const barsEl = document.getElementById('bars');
+const heights = [22, 38, 65, 82, 70, 55, 48, 62, 78, 85, 72, 58, 44, 36, 48, 60, 52, 38, 30, 42, 55, 48, 35, 28, 22, 30, 38, 32, 24, 18, 20, 26, 22, 18, 15, 12, 14, 16, 12, 9, 8, 10, 8, 6, 5];
+heights.forEach(h => {
+  const b = document.createElement('div');
+  b.className = 'bar';
+  b.style.height = h + '%';
+  barsEl.appendChild(b);
+});
+
+// ── Field grid dots ─────────────────────────────
+const gridDots = document.getElementById('gridDots');
+for (let x = 30; x <= 380; x += 25) {
+  for (let y = 30; y <= 250; y += 25) {
+    const d = Math.hypot(x - 200, y - 140);
+    const opacity = Math.max(0, 1 - d / 180);
+    if (opacity < 0.05) continue;
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 0.9);
+    c.setAttribute('fill', `oklch(78% 0.115 205 / ${0.12 * opacity})`);
+    gridDots.appendChild(c);
+  }
+}
+
+// ── Animated waveforms + bilateral pulse ─────────
+const waveL = document.getElementById('waveL');
+const waveR = document.getElementById('waveR');
+const trail = document.getElementById('trail');
+const pulseL = document.getElementById('pulseL');
+const pulseLi = document.getElementById('pulseLi');
+const pulseR = document.getElementById('pulseR');
+
+function genWave(t, amp, phase) {
+  const pts = [];
+  for (let x = 0; x <= 800; x += 4) {
+    const u = x / 800;
+    const env = Math.exp(-Math.pow((u - ((t * 0.5 + phase) % 1)) * 6, 2)) * amp;
+    const y = 30 + Math.sin(u * 60 + t * 4) * 20 * env;
+    pts.push((x === 0 ? 'M' : 'L') + x + ' ' + y.toFixed(1));
+  }
+  return pts.join(' ');
+}
+
+let t0 = performance.now();
+function tick() {
+  const t = (performance.now() - t0) / 1000;
+  const phase = (t * 1.0) % 2;          // bilateral 1 Hz cycle for demo
+  const lActive = phase < 1;
+  const rActive = phase >= 1;
+
+  waveL.setAttribute('d', genWave(t, lActive ? 1 : 0.05, 0));
+  waveR.setAttribute('d', genWave(t, rActive ? 1 : 0.05, 0.5));
+
+  // Lissajous trail
+  let trailD = '';
+  for (let i = 0; i < 90; i++) {
+    const tt = t - i * 0.012;
+    const x = 200 + Math.sin(tt * 3.1) * 130;
+    const y = 140 + Math.sin(tt * 2.0) * 80;
+    trailD += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1);
+  }
+  trail.setAttribute('d', trailD);
+
+  // pulse markers
+  const lr = lActive ? 1 : 0.2;
+  const rr = rActive ? 1 : 0.2;
+  pulseL.setAttribute('r', 6 + lr * 6);
+  pulseL.setAttribute('opacity', 0.3 + lr * 0.6);
+  pulseLi.setAttribute('r', 2 + lr * 3);
+  pulseR.setAttribute('r', 5 + rr * 6);
+  pulseR.setAttribute('opacity', 0.3 + rr * 0.6);
+
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+
+</body>
+</html>
