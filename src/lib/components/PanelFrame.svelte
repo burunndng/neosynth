@@ -25,12 +25,13 @@
     children
   }: Props = $props();
 
-  const accentColor = $derived({
+  const accentMap: Record<string, string> = {
     cyan: 'var(--ns-accent-primary)',
     magenta: 'var(--ns-accent-secondary)',
     green: 'var(--ns-accent-tertiary)',
     amber: 'var(--ns-accent-warning)'
-  }[accent]);
+  };
+  const accentColor = $derived(accentMap[accent] ?? 'var(--ns-accent-primary)');
 
   const registry = useCablePortRegistry();
   let panelEl: HTMLDivElement | null = $state(null);
@@ -40,7 +41,7 @@
   function remeasure() {
     if (!registry || !portEl || !portId || portSide === 'none') return;
     let containerEl: HTMLElement | null = null;
-    registry.container.subscribe((el) => (containerEl = el))();
+    registry.container.subscribe((el: HTMLElement | null) => (containerEl = el))();
     if (!containerEl) return;
     const { x, y } = measurePort(portEl, containerEl);
     registry.set({ id: portId, x, y, edge: portSide, accent, active });

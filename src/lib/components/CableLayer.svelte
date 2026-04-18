@@ -21,16 +21,19 @@
       case 'right':  return [ dist, 0];
       case 'top':    return [0, -dist];
       case 'bottom': return [0,  dist];
+      default:       return [0, 0];
     }
   }
 
+  const accentMap: Record<string, string> = {
+    cyan: 'var(--ns-accent-primary)',
+    magenta: 'var(--ns-accent-secondary)',
+    green: 'var(--ns-accent-tertiary)',
+    amber: 'var(--ns-accent-warning)'
+  };
+
   function accentToCss(a: PortInfo['accent']): string {
-    return {
-      cyan: 'var(--ns-accent-primary)',
-      magenta: 'var(--ns-accent-secondary)',
-      green: 'var(--ns-accent-tertiary)',
-      amber: 'var(--ns-accent-warning)'
-    }[a];
+    return accentMap[a] ?? 'var(--ns-accent-primary)';
   }
 
   function buildPath(from: PortInfo, to: PortInfo): string {
