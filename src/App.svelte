@@ -456,7 +456,7 @@
 							</div>
 						</div>
 					</div>
-				</div>
+				</div></div>
 
 				{#if $activeCarriers.some((c: CarrierType) => ['sine', 'square', 'sawtooth', 'triangle'].includes(c))}
 					<div class="mt-4 pt-4 border-t border-gray-800 flex items-center gap-6">
