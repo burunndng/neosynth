@@ -29,7 +29,8 @@
 		toggleCarrier,
 		type CarrierType,
 		type PatternType,
-		type RatePreset
+		type RatePreset,
+		spectrumData as specData
 	} from '$lib/stores/audioStore';
 	import BilateralField from '$lib/components/BilateralField.svelte';
 	import TraceLayer from '$lib/components/TraceLayer.svelte';
@@ -512,10 +513,101 @@
 						</div>
 					</div>
 				{/if}
+
+				<!-- Envelope Controls -->
+				<div class="mt-8 pt-8 border-t border-gray-800">
+					<div class="bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-6">
+						<h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-6">Envelope (AD)</h3>
+						<div class="flex items-center justify-center gap-8">
+							<Knob
+								label="Attack"
+								value={$attackTime}
+								min={0.001}
+								max={0.5}
+								step={0.001}
+								unit="s"
+								size="lg"
+								color="cyan"
+								onInput={(v: number) => { attackTime.set(v); if ($isPlaying) updateEngineConfig(); }}
+							/>
+							<Knob
+								label="Decay"
+								value={$decayTime}
+								min={0.01}
+								max={2}
+								step={0.01}
+								unit="s"
+								size="lg"
+								color="magenta"
+								onInput={(v: number) => { decayTime.set(v); if ($isPlaying) updateEngineConfig(); }}
+							/>
+							<Knob
+								label="Duty Cycle"
+								value={$dutyCycle}
+								min={0.1}
+								max={0.9}
+								step={0.05}
+								unit=""
+								size="lg"
+								color="green"
+								onInput={(v: number) => { dutyCycle.set(v); if ($isPlaying) updateEngineConfig(); }}
+							/>
+						</div>
+					</div>
+				</div>
+
+				<!-- Stereo Bilateral Controls -->
+				<div class="mt-8 pt-8 border-t border-gray-800">
+					<div class="bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-6">
+						<h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-6">Stereo Bilateral</h3>
+						<div class="flex items-center justify-center gap-8">
+							<Knob
+								label="Left Gain"
+								value={$leftGain}
+								min={0}
+								max={1}
+								step={0.01}
+								unit=""
+								size="lg"
+								color="cyan"
+								onInput={(v: number) => { leftGain.set(v); if ($isPlaying) updateEngineConfig(); }}
+							/>
+							<Knob
+								label="Right Gain"
+								value={$rightGain}
+								min={0}
+								max={1}
+								step={0.01}
+								unit=""
+								size="lg"
+								color="magenta"
+								onInput={(v: number) => { rightGain.set(v); if ($isPlaying) updateEngineConfig(); }}
+							/>
+						</div>
+					</div>
+				</div>
 			</section>
 
 			<!-- Right Sidebar - Visualizer -->
 			<aside class="col-span-3 space-y-4">
+				<!-- Master Gain Control -->
+				<div class="bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-4">
+					<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Master Output</h2>
+					<div class="flex justify-center">
+						<Knob
+							label="Master Gain"
+							value={$masterGain}
+							min={0}
+							max={1}
+							step={0.01}
+							unit=""
+							size="lg"
+							color="cyan"
+							onInput={(v: number) => { masterGain.set(v); if ($isPlaying) updateEngineConfig(); }}
+						/>
+					</div>
+				</div>
+
 				<div class="bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-4">
 					<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Oscilloscope</h2>
 					<TraceLayer

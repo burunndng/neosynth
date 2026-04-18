@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { waveformLeft, waveformRight, isPlaying } from '$lib/stores/audioStore';
+	import { waveformLeft, waveformRight, isPlaying, spectrumData, levelLeft, levelRight } from '$lib/stores/audioStore';
 	import { onMount, onDestroy } from 'svelte';
 
 	interface Props {
@@ -89,7 +89,25 @@
 		ctx.clearRect(0, 0, w, h);
 		ctx.fillStyle = '#08080c';
 		ctx.fillRect(0, 0, w, h);
-		ctx.beginPath();
+
+		const data = $spectrumData;
+		if (!data || data.length === 0) return;
+
+		const barWidth = w / data.length;
+		ctx.shadowColor = colors.glow;
+		ctx.shadowBlur = 6;
+
+		for (let i = 0; i < data.length; i++) {
+			const value = (data[i] + 140) / 140;
+			const barHeight = Math.max(0, Math.min(1, value)) * h;
+
+			const gradient = ctx.createLinearGradient(0, h, 0, h - barHeight);
+			gradient.addColorStop(0, colors.stroke);
+			gradient.addColorStop(1, '#3b82f6');
+			ctx.fillStyle = gradient;
+			ctx.fillRect(i * barWidth + 1, h - barHeight, barWidth - 1, barHeight);
+		}
+		ctx.shadowBlur = 0;
 	}
 
 	function drawMeter() {
@@ -100,7 +118,17 @@
 		ctx.fillStyle = '#08080c';
 		ctx.fillRect(0, 0, w, h);
 
-		const lvl = Math.min(1, Math.max($waveformLeft, $waveformRight) * 3);
+		// Calculate RMS from waveform data
+		let sumL = 0, sumR = 0;
+		const len = Math.min($waveformLeft.length, $waveformRight.length);
+		for (let i = 0; i < len; i++) {
+			sumL += $waveformLeft[i] * $waveformLeft[i];
+			sumR += $waveformRight[i] * $waveformRight[i];
+		}
+		const rmsL = Math.sqrt(sumL / len);
+		const rmsR = Math.sqrt(sumR / len);
+		const lvl = Math.min(1, Math.max(rmsL, rmsR) * 3);
+
 		const barH = (h / 3) * lvl;
 		const gradient = ctx.createLinearGradient(0, h, 0, h - barH);
 		gradient.addColorStop(0, colors.stroke);

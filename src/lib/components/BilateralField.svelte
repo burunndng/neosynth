@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { cubicInOut } from 'svelte/easing';
 	import { onMount, onDestroy } from 'svelte';
-	import { waveformLeft, waveformRight } from '$lib/stores/audioStore';
+	import { waveformLeft, waveformRight, levelLeft, levelRight } from '$lib/stores/audioStore';
 
 	let container: HTMLDivElement;
 	let width = 800;
@@ -46,9 +46,9 @@
 		}, { passive: true });
 
 		function loop() {
-			phase += 0.002 + $waveformLeft * 0.01;
-			lvl = 0.3 + $waveformLeft * 0.7;
-			hue = (hue + 0.3 + $waveformRight * 0.5) % 360;
+			phase += 0.002 + $levelLeft * 0.01;
+			lvl = 0.3 + $levelLeft * 0.7;
+			hue = (hue + 0.3 + $levelRight * 0.5) % 360;
 			animId = requestAnimationFrame(loop);
 		}
 		loop();
@@ -106,8 +106,8 @@
 					stroke-opacity={0.3 - ring * 0.05 + lvl * 0.15}
 					filter="url(#softGlow)"
 				>
-					<animate attributeName="r" values="{80 + ring * 60};{100 + ring * 60 + lvl * 80};{80 + ring * 60}" dur="{2 / (1 + $waveformLeft * 2)}s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" />
-					<animate attributeName="stroke-opacity" values="0.15;0.3;0.15" dur="{2 / (1 + $waveformLeft * 2)}s" repeatCount="indefinite" />
+					<animate attributeName="r" values="{80 + ring * 60};{100 + ring * 60 + lvl * 80};{80 + ring * 60}" dur="{2 / (1 + $levelLeft * 2)}s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" />
+					<animate attributeName="stroke-opacity" values="0.15;0.3;0.15" dur="{2 / (1 + $levelLeft * 2)}s" repeatCount="indefinite" />
 				</circle>
 			</g>
 		{/each}
