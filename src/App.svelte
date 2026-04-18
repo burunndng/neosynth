@@ -410,11 +410,11 @@
 												? 'border-cyan-400 bg-cyan-400/15 text-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.3)]'
 												: 'border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-500 hover:text-gray-300'
 										)}
-									onclick={() => setCarrier(type as CarrierType)}
-								>
+									onclick={() => setCarrier(type as CarrierType)}>
 									{type === 'sine' ? 'Sine' : type === 'square' ? 'Square' : type === 'sawtooth' ? 'Saw' : 'Tri'}
 								</button>
 							{/each}
+							</div>
 						</div>
 					</div>
 
@@ -565,8 +565,9 @@
 			<div class="flex items-center gap-6">
 				<div class="flex items-center gap-4">
 					<div>
-						<label class="block text-xs text-gray-500 mb-1">Duration</label>
+						<label for="export-duration" class="block text-xs text-gray-500 mb-1">Duration</label>
 						<select
+							id="export-duration"
 							value={$exportDuration}
 							class="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-cyan-400"
 						>
@@ -578,8 +579,9 @@
 						</select>
 					</div>
 					<div>
-						<label class="block text-xs text-gray-500 mb-1">Bit Depth</label>
+						<label for="export-bitdepth" class="block text-xs text-gray-500 mb-1">Bit Depth</label>
 						<select
+							id="export-bitdepth"
 							value={$exportBitDepth}
 							class="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-cyan-400"
 						>

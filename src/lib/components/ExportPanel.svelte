@@ -25,8 +25,8 @@
 
 <div class="export-panel">
 	<div class="export-row">
-		<label class="export-label">Duration</label>
-		<select bind:value={$exportDuration}>
+		<label for="export-duration" class="export-label">Duration</label>
+		<select id="export-duration" bind:value={$exportDuration}>
 			<option value={30}>30 seconds</option>
 			<option value={60}>1 minute</option>
 			<option value={120}>2 minutes</option>
@@ -35,8 +35,8 @@
 		</select>
 	</div>
 	<div class="export-row">
-		<label class="export-label">Bit Depth</label>
-		<select bind:value={$exportBitDepth}>
+		<label for="export-bitdepth" class="export-label">Bit Depth</label>
+		<select id="export-bitdepth" bind:value={$exportBitDepth}>
 			<option value={16}>16-bit PCM</option>
 			<option value={24}>24-bit PCM</option>
 		</select>

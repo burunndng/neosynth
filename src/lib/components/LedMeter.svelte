@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { levelLeft, levelRight } from '$lib/stores/audioStore';
 
-	let { color = 'green' }: { color?: 'cyan' | 'magenta' | 'green' } = $props();
+	let { color = 'green', children }: { color?: 'cyan' | 'magenta' | 'green'; children?: import('svelte').Snippet } = $props();
 
 	const colorMap = {
 		cyan: { primary: '#22d3ee', glow: 'rgba(34, 211, 238, 0.6)' },
@@ -20,7 +20,7 @@
 			<div class="meter-peak" style="background: {c.primary};"></div>
 		</div>
 	</div>
-	<span class="led-label"><slot /></span>
+	<span class="led-label">{@render children?.()}</span>
 </div>
 
 <style>

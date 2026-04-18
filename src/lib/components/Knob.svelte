@@ -29,7 +29,7 @@
 		class: className = ''
 	}: Props = $props();
 
-	let localValue = $state(value);
+	let localValue = $state(0);
 
 	$effect(() => {
 		localValue = value;
