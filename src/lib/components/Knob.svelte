@@ -30,25 +30,25 @@
 	}: Props = $props();
 
 	let localValue = $state(value);
+
+	$effect(() => {
+		localValue = value;
+	});
+
 	let dragging = $state(false);
 	let startY = 0;
 	let startValue = 0;
 
-	$effect(() => {
-		if (!dragging) localValue = value;
-	});
+	const sizeMap = { sm: 32, md: 40, lg: 48 };
+	const sizePx = $derived(sizeMap[size]);
 
-	const sizeClasses = {
-		sm: 'w-12 h-12',
-		md: 'w-16 h-16',
-		lg: 'w-20 h-20'
+	const colorValues = {
+		cyan: { primary: '#22d3ee', secondary: '#3b82f6', glow: 'rgba(34, 211, 238, 0.5)' },
+		magenta: { primary: '#e879f9', secondary: '#ec4899', glow: 'rgba(232, 121, 249, 0.5)' },
+		green: { primary: '#34d399', secondary: '#22c55e', glow: 'rgba(52, 211, 153, 0.5)' }
 	};
 
-	const colorClasses = {
-		cyan: 'from-cyan-400 to-blue-500',
-		magenta: 'from-fuchsia-400 to-pink-500',
-		green: 'from-emerald-400 to-green-500'
-	};
+	const colors = $derived(colorValues[color]);
 
 	function normalizeValue(val: number): number {
 		return Math.min(max, Math.max(min, val));
@@ -57,6 +57,10 @@
 	function getRotation(value: number): number {
 		const normalized = (value - min) / (max - min);
 		return -135 + normalized * 270;
+	}
+
+	function getPercentage(): number {
+		return ((localValue - min) / (max - min)) * 100;
 	}
 
 	function handlePointerDown(e: PointerEvent) {
@@ -84,33 +88,26 @@
 
 	function handleDoubleClick() {
 		localValue = min;
+		onInput?.(localValue);
 		onChange?.(localValue);
 	}
 
-	function getPercentage(): number {
-		return ((localValue - min) / (max - min)) * 100;
-	}
+	const tickAngles = Array.from({ length: 11 }, (_, i) => -135 + i * 27);
 </script>
 
 <div
 	class={cn(
-		'flex flex-col items-center gap-2 select-none',
+		'flex flex-col items-center gap-1.5 select-none',
 		className
 	)}
 >
 	{#if label}
-		<span class="text-xs font-medium text-gray-400 uppercase tracking-wider">{label}</span>
+		<span class="text-[10px] font-medium text-[var(--ns-text-secondary)] uppercase tracking-wider">{label}</span>
 	{/if}
 
 	<div
-		class={cn(
-			'relative rounded-full cursor-grab transition-transform duration-100',
-			sizeClasses[size],
-			dragging ? 'scale-105 cursor-grabbing' : 'hover:scale-105',
-			'bg-gradient-to-br from-gray-800 to-gray-900',
-			'ring-2 ring-gray-700 hover:ring-gray-600',
-			'shadow-lg shadow-black/50'
-		)}
+		class="relative rounded-full cursor-grab transition-transform duration-100"
+		style="width: {sizePx}px; height: {sizePx}px;"
 		onpointerdown={handlePointerDown}
 		onpointermove={handlePointerMove}
 		onpointerup={handlePointerUp}
@@ -123,85 +120,90 @@
 		aria-label={label || 'Knob control'}
 		tabindex="0"
 	>
-		<!-- Outer ring with ticks -->
-		<svg class="absolute inset-0 w-full h-full rotate-[-135deg]" viewBox="0 0 100 100">
-			<!-- Background track -->
+		<div
+			class="absolute inset-0 rounded-full transition-opacity duration-200"
+			style="opacity: {dragging ? 0.4 : 0.15}; background: radial-gradient(circle, {colors.glow} 0%, transparent 70%); filter: blur(6px); z-index: -1;"
+		></div>
+
+		<svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" style="overflow: visible;">
+			<circle cx="50" cy="50" r="47" fill="none" stroke="url(#knob-chrome-{color})" stroke-width="1.25" opacity="0.7" />
+
+			{#each Array.from({ length: 13 }, (_, i) => -150 + i * 27.5) as tAngle, i}
+				{@const tickPct = i / 12}
+				{@const on = tickPct <= getPercentage() / 100}
+				<rect
+					x="49.1" y="1.5" width="1.8" height="5"
+					fill={on ? colors.primary : 'rgba(255,255,255,0.12)'}
+					transform="rotate({tAngle} 50 50)"
+					style="filter: {on ? `drop-shadow(0 0 2px ${colors.glow})` : 'none'};"
+				/>
+			{/each}
+
 			<circle
-				cx="50"
-				cy="50"
-				r="42"
-				fill="none"
-				stroke="#1f2937"
-				stroke-width="8"
-				stroke-linecap="round"
-				stroke-dasharray="198"
-				stroke-dashoffset="0"
+				cx="50" cy="50" r="38" fill="none"
+				stroke="#12131d" stroke-width="6" stroke-linecap="round"
+				stroke-dasharray="198" stroke-dashoffset="0"
 				transform="rotate(135 50 50)"
 			/>
-			<!-- Value arc -->
 			<circle
-				cx="50"
-				cy="50"
-				r="42"
-				fill="none"
-				stroke="url(#gradient)"
-				stroke-width="8"
-				stroke-linecap="round"
+				cx="50" cy="50" r="38" fill="none"
+				stroke="url(#knob-gradient-{color})" stroke-width="6" stroke-linecap="round"
 				stroke-dasharray="198"
 				stroke-dashoffset={198 * (1 - getPercentage() / 100)}
 				transform="rotate(135 50 50)"
 				class="transition-all duration-75"
+				style="filter: drop-shadow(0 0 6px {colors.glow});"
 			/>
+
 			<defs>
-				<linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-					<stop offset="0%" class={color === 'cyan' ? 'stop-cyan-400' : color === 'magenta' ? 'stop-fuchsia-400' : 'stop-emerald-400'} style="stop-color: var(--tw-gradient-from)" />
-					<stop offset="100%" class={color === 'cyan' ? 'stop-blue-500' : color === 'magenta' ? 'stop-pink-500' : 'stop-green-500'} style="stop-color: var(--tw-gradient-to)" />
+				<linearGradient id="knob-gradient-{color}" x1="0%" y1="0%" x2="100%" y2="100%">
+					<stop offset="0%" stop-color={colors.primary} />
+					<stop offset="100%" stop-color={colors.secondary} />
+				</linearGradient>
+				<linearGradient id="knob-chrome-{color}" x1="0%" y1="0%" x2="0%" y2="100%">
+					<stop offset="0%" stop-color="#3a3a4a" />
+					<stop offset="50%" stop-color="#1a1a2e" />
+					<stop offset="100%" stop-color="#3a3a4a" />
 				</linearGradient>
 			</defs>
 		</svg>
 
-		<!-- Inner knob -->
 		<div
-			class={cn(
-				'absolute inset-2 rounded-full bg-gradient-to-br',
-				colorClasses[color],
-				'flex items-center justify-center',
-				'shadow-inner'
-			)}
-			style="transform: rotate({getRotation(localValue)}deg)"
+			class="absolute rounded-full flex items-center justify-center"
+			style="
+				inset: 8px;
+				background: radial-gradient(ellipse at 35% 30%, #3a3a4a 0%, #1a1a2e 60%, #0d0d15 100%);
+				box-shadow: inset 0 1px 2px rgba(255,255,255,0.08), inset 0 -1px 2px rgba(0,0,0,0.4);
+				transform: rotate({getRotation(localValue)}deg);
+			"
 		>
-			<!-- Indicator line -->
-			<div class="absolute top-1 w-1 h-3 bg-white rounded-full shadow-lg"></div>
-			
-			<!-- Value display -->
-			<span class="text-[10px] font-bold text-white drop-shadow-md">
-				{localValue.toFixed(step < 1 ? 2 : 0)}{unit}
+			<div
+				class="absolute rounded-full"
+				style="
+					top: 2px;
+					left: 50%;
+					transform: translateX(-50%);
+					width: 2px;
+					height: {sizePx < 40 ? 4 : 6}px;
+					background: white;
+					box-shadow: 0 0 4px rgba(255,255,255,0.6);
+				"
+			></div>
+
+			<span
+				class="font-bold text-white absolute"
+				style="
+					font-size: {sizePx < 40 ? 8 : 10}px;
+					transform: rotate(-{getRotation(localValue)}deg);
+					font-variant-numeric: tabular-nums;
+				"
+			>
+				{localValue.toFixed(step < 1 ? (step < 0.01 ? 3 : 2) : 0)}
 			</span>
 		</div>
-
-		<!-- Glow effect -->
-		<div
-			class={cn(
-				'absolute inset-0 rounded-full opacity-0 transition-opacity duration-200',
-				dragging ? 'opacity-30' : 'hover:opacity-20',
-				'bg-gradient-to-br',
-				colorClasses[color],
-				'blur-md'
-			)}
-			style="z-index: -1"
-		></div>
 	</div>
 
-	{#if unit && !label}
-		<span class="text-[10px] text-gray-500">{unit}</span>
+	{#if unit}
+		<span class="text-[8px] text-[var(--ns-text-dim)] uppercase">{unit}</span>
 	{/if}
 </div>
-
-<style>
-	.stop-cyan-400 { --tw-gradient-from: #22d3ee; }
-	.stop-blue-500 { --tw-gradient-to: #3b82f6; }
-	.stop-fuchsia-400 { --tw-gradient-from: #e879f9; }
-	.stop-pink-500 { --tw-gradient-to: #ec4899; }
-	.stop-emerald-400 { --tw-gradient-from: #34d399; }
-	.stop-green-500 { --tw-gradient-to: #22c55e; }
-</style>

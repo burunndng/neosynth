@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { engine } from '$lib/audio/AudioEngine';
-	import { 
+	import {
 		isPlaying,
 		pattern,
 		ratePreset,
@@ -27,24 +27,30 @@
 		selectedSampleId,
 		sampleAudioBuffer,
 		toggleCarrier,
-		type CarrierType
+		type CarrierType,
+		type PatternType,
+		type RatePreset
 	} from '$lib/stores/audioStore';
-	import Visualizer from '$lib/components/Visualizer.svelte';
+	import BilateralField from '$lib/components/BilateralField.svelte';
+	import TraceLayer from '$lib/components/TraceLayer.svelte';
+	import LedMeter from '$lib/components/LedMeter.svelte';
+	import SampleLibrary from '$lib/components/SampleLibrary.svelte';
+	import ExportPanel from '$lib/components/ExportPanel.svelte';
+	import PresetButton from '$lib/components/PresetButton.svelte';
 	import Knob from '$lib/components/Knob.svelte';
 	import Fader from '$lib/components/Fader.svelte';
-	import PresetButton from '$lib/components/PresetButton.svelte';
 	import { Play, Square, Upload, Download, Info, Music, Activity, Settings } from 'lucide-svelte';
 	import { onDestroy } from 'svelte';
-	
+
 	function cn(...classes: Array<string | undefined | null | false>): string {
 		return classes.filter(Boolean).join(' ');
 	}
-	
+
 	let isInitialized = $state(false);
 	let showInfoPanel = $state(false);
 	let isExporting = $state(false);
 	let visualizerAnimationId: number | null = null;
-	
+
 	// Pattern presets
 	const patternPresets = {
 		pure: { label: 'Pure Alternation', icon: '⇄' },
@@ -53,7 +59,7 @@
 		clustered: { label: 'Clustered', icon: '⋯' },
 		randomized: { label: 'Randomized', icon: '⚡' }
 	};
-	
+
 	// Rate presets
 	const ratePresets = {
 		delta: { label: 'Delta', range: '0.5-3 Hz', default: 2 },
@@ -62,7 +68,7 @@
 		beta: { label: 'Beta', range: '13-30 Hz', default: 20 },
 		emdr: { label: 'EMDR', range: '1-3 Hz', default: 2 }
 	};
-	
+
 	// Carrier presets
 	const carrierPresets: Record<string, { label: string; group?: string }> = {
 		sine: { label: 'Sine Tone', group: 'Waves' },
@@ -96,7 +102,7 @@
 		}
 		isLoadingSample = false;
 	}
-	
+
 	async function handleInitialize() {
 		if (!isInitialized) {
 			await engine.init();
@@ -104,7 +110,7 @@
 			startVisualizerLoop();
 		}
 	}
-	
+
 	function startVisualizerLoop() {
 		function update() {
 			if (!$isPlaying) {
@@ -131,10 +137,10 @@
 			cancelAnimationFrame(visualizerAnimationId);
 		}
 	});
-	
+
 	function handlePlay() {
 		if (!isInitialized) return;
-		
+
 		if ($isPlaying) {
 			engine.stop();
 			isPlaying.set(false);
@@ -144,36 +150,16 @@
 			isPlaying.set(true);
 		}
 	}
-	
-	function updateEngineConfig() {
-		engine.updateConfig({
-			pattern: $pattern,
-			rate: $currentRate,
-			carrierTypes: $activeCarriers,
-			carrierFreq: $carrierFreq,
-			attack: $attackTime,
-			decay: $decayTime,
-			dutyCycle: $dutyCycle,
-			leftGain: $leftGain,
-			rightGain: $rightGain,
-			masterGain: $masterGain,
-			sampleBuffer: $sampleAudioBuffer
-		});
-	}
-	
+
 	function setPattern(p: keyof typeof patternPresets) {
 		pattern.set(p);
 		if ($isPlaying) updateEngineConfig();
 	}
-	
-	function setRatePreset(p: keyof typeof ratePresets) {
+
+	function applyRatePreset(p: keyof typeof ratePresets) {
 		ratePreset.set(p);
 		rateValue.set(ratePresets[p].default);
 		if ($isPlaying) updateEngineConfig();
-	}
-
-	function applyRatePreset(p: keyof typeof ratePresets) {
-		setRatePreset(p);
 	}
 
 	function setRate(value: number) {
@@ -194,23 +180,22 @@
 		if ($isPlaying) updateEngineConfig();
 	}
 
-	function updateEnvelope(values: { attack?: number; decay?: number; dutyCycle?: number }) {
-		if (values.attack !== undefined) attackTime.set(values.attack);
-		if (values.decay !== undefined) decayTime.set(values.decay);
-		if (values.dutyCycle !== undefined) dutyCycle.set(values.dutyCycle);
-		if ($isPlaying) updateEngineConfig();
+	function updateEngineConfig() {
+		engine.updateConfig({
+			pattern: $pattern,
+			rate: $currentRate,
+			carrierTypes: $activeCarriers,
+			carrierFreq: $carrierFreq,
+			attack: $attackTime,
+			decay: $decayTime,
+			dutyCycle: $dutyCycle,
+			leftGain: $leftGain,
+			rightGain: $rightGain,
+			masterGain: $masterGain,
+			sampleBuffer: $sampleAudioBuffer
+		});
 	}
 
-	function setLeftGain(value: number) {
-		leftGain.set(value);
-		if ($isPlaying) updateEngineConfig();
-	}
-
-	function setRightGain(value: number) {
-		rightGain.set(value);
-		if ($isPlaying) updateEngineConfig();
-	}
-	
 	function handleFileUpload(event: Event) {
 		try {
 			const input = event.target as HTMLInputElement;
@@ -241,13 +226,13 @@
 			console.error('File upload error:', error);
 		}
 	}
-	
+
 	async function handleExport() {
 		if (!isInitialized || isExporting) return;
-		
+
 		isExporting = true;
 		updateEngineConfig();
-		
+
 		try {
 			const blob = await engine.renderOffline($exportDuration, $exportBitDepth);
 			const url = URL.createObjectURL(blob);
@@ -262,7 +247,7 @@
 			isExporting = false;
 		}
 	}
-	
+
 	$effect(() => {
 		if ($isPlaying) {
 			updateEngineConfig();
@@ -289,7 +274,7 @@
 			</div>
 		</div>
 	{/if}
-	
+
 	<!-- Header -->
 	<header class="sticky top-0 z-40 bg-[#0d0d0f]/95 backdrop-blur-md border-b border-gray-800">
 		<div class="max-w-[1600px] mx-auto px-6 py-4">
@@ -307,13 +292,13 @@
 						</div>
 					</div>
 				</div>
-				
+
 				<div class="flex items-center gap-4">
-					<button 
+					<button
 						class={cn(
 							'flex items-center gap-2 px-6 py-3 rounded-lg font-bold transition-all',
-							$isPlaying 
-								? 'bg-gradient-to-r from-red-500 to-pink-500 text-white shadow-lg shadow-red-500/30' 
+							$isPlaying
+								? 'bg-gradient-to-r from-red-500 to-pink-500 text-white shadow-lg shadow-red-500/30'
 								: 'bg-gradient-to-r from-cyan-400 to-blue-500 text-[#0d0d0f] shadow-lg shadow-cyan-500/30 hover:scale-105'
 						)}
 						onclick={handlePlay}
@@ -321,25 +306,24 @@
 					>
 						{#if $isPlaying}
 							<Square class="w-5 h-5" />
-							Stop
 						{:else}
 							<Play class="w-5 h-5" />
-							Play
 						{/if}
+						{$isPlaying ? 'Stop' : 'Play'}
 					</button>
-					
+
 					<label class="flex items-center gap-2 px-4 py-3 bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-700/50 transition-colors border border-gray-700">
 						<Upload class="w-5 h-5 text-gray-400" />
 						<span class="text-sm font-medium">Upload</span>
-						<input 
-							type="file" 
-							accept="audio/*" 
+						<input
+							type="file"
+							accept="audio/*"
 							onchange={handleFileUpload}
 							class="hidden"
 						/>
 					</label>
-					
-					<button 
+
+					<button
 						class="flex items-center gap-2 px-4 py-3 bg-gray-800/50 rounded-lg hover:bg-gray-700/50 transition-colors border border-gray-700"
 						onclick={() => showInfoPanel = !showInfoPanel}
 					>
@@ -349,7 +333,7 @@
 			</div>
 		</div>
 	</header>
-	
+
 	<!-- Main Content -->
 	<main class="max-w-[1600px] mx-auto px-6 py-8">
 		<div class="grid grid-cols-12 gap-6">
@@ -364,13 +348,13 @@
 								active={$pattern === key}
 								color="cyan"
 								size="sm"
-								onClick={() => setPattern(key as typeof key)}
+								onClick={() => setPattern(key as PatternType)}
 								class="w-full justify-start"
 							/>
 						{/each}
 					</div>
 				</div>
-				
+
 				<div class="bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-4">
 					<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Rate</h2>
 					<div class="grid grid-cols-2 gap-2">
@@ -380,7 +364,7 @@
 								active={Math.abs($currentRate - preset.default) < 0.5}
 								color="magenta"
 								size="sm"
-								onClick={() => applyRatePreset(key as typeof key)}
+								onClick={() => applyRatePreset(key as RatePreset)}
 							/>
 						{/each}
 					</div>
@@ -395,13 +379,13 @@
 							max="30"
 							step="0.1"
 							bind:value={$rateValue}
-							oninput={(e) => setRate(parseFloat(e.target.value))}
+							oninput={(e: Event) => setRate(parseFloat((e.target as HTMLInputElement).value))}
 							class="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
 						/>
 					</div>
 				</div>
 			</aside>
-			
+
 			<!-- Center - Main Synth Engine -->
 			<section class="col-span-7 space-y-4">
 				<!-- Carrier Module -->
@@ -413,8 +397,8 @@
 						</h2>
 						<span class="text-xs text-gray-500">Click to toggle • Combine multiple</span>
 					</div>
-					
-					<div class="space-y-3">
+
+					<div class="[&>div]:space-y-3">
 						<div>
 							<span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Waves</span>
 							<div class="flex flex-wrap gap-2 mt-1">
@@ -426,14 +410,15 @@
 												? 'border-cyan-400 bg-cyan-400/15 text-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.3)]'
 												: 'border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-500 hover:text-gray-300'
 										)}
-										onclick={() => setCarrier(type as CarrierType)}
-									>
-										{type === 'sine' ? 'Sine' : type === 'square' ? 'Square' : type === 'sawtooth' ? 'Saw' : 'Tri'}
-									</button>
-								{/each}
-							</div>
+									onclick={() => setCarrier(type as CarrierType)}
+								>
+									{type === 'sine' ? 'Sine' : type === 'square' ? 'Square' : type === 'sawtooth' ? 'Saw' : 'Tri'}
+								</button>
+							{/each}
 						</div>
-						
+					</div>
+
+					<div class="space-y-3">
 						<div>
 							<span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Noise</span>
 							<div class="flex flex-wrap gap-2 mt-1">
@@ -445,14 +430,15 @@
 												? 'border-fuchsia-400 bg-fuchsia-400/15 text-fuchsia-300 shadow-[0_0_10px_rgba(232,121,249,0.3)]'
 												: 'border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-500 hover:text-gray-300'
 										)}
-										onclick={() => setCarrier(type as CarrierType)}
-									>
-										{type === 'white-noise' ? 'White' : type === 'pink' ? 'Pink' : type === 'brown' ? 'Brown' : 'B.Lim'}
-									</button>
-								{/each}
-							</div>
+									onclick={() => setCarrier(type as CarrierType)}
+								>
+									{type === 'white-noise' ? 'White' : type === 'pink' ? 'Pink' : type === 'brown' ? 'Brown' : 'B.Lim'}
+								</button>
+							{/each}
 						</div>
-						
+					</div>
+
+					<div class="space-y-3">
 						<div>
 							<span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Sample</span>
 							<div class="flex flex-wrap gap-2 mt-1">
@@ -470,145 +456,69 @@
 							</div>
 						</div>
 					</div>
-					
-					{#if $activeCarriers.some(c => ['sine', 'square', 'sawtooth', 'triangle'].includes(c))}
-						<div class="mt-4 pt-4 border-t border-gray-800 flex items-center gap-6">
-							<Knob
-								label="Frequency"
-								value={$carrierFreq}
-								min={100}
-								max={2000}
-								step={10}
-								unit="Hz"
-								size="lg"
-								color="cyan"
-								onInput={(v) => setCarrierFreq(v)}
-							/>
-						</div>
-					{/if}
-					
-					{#if $activeCarriers.includes('bandlimited')}
-						<div class="mt-4 pt-4 border-t border-gray-800 flex items-center gap-6">
-							<Knob
-								label="Cutoff"
-								value={$carrierFreq}
-								min={100}
-								max={5000}
-								step={50}
-								unit="Hz"
-								size="lg"
-								color="cyan"
-								onInput={(v) => setCarrierFreq(v)}
-							/>
-						</div>
-					{/if}
-					
-					{#if $activeCarriers.includes('sample')}
-						<div class="mt-4 pt-4 border-t border-gray-800">
-							<span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Select Sound</span>
-							<div class="grid grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto">
-								{#each soundLibrary as entry}
-									<button
-										class={cn(
-											'text-left px-3 py-2 rounded-lg border transition-all text-sm',
-											$selectedSampleId === entry.id
-												? 'border-emerald-400 bg-emerald-400/10 text-emerald-300'
-												: 'border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-600 hover:text-gray-300'
-										)}
-										onclick={() => loadSample(entry.id)}
-										disabled={isLoadingSample}
-									>
-										<div class="font-medium">{entry.label}</div>
-										<div class="text-xs text-gray-500">{entry.description}</div>
-									</button>
-								{/each}
-							</div>
-						</div>
-					{/if}
 				</div>
-				
-				<!-- Envelope Module -->
-				<div class="bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-6">
-					<div class="flex items-center justify-between mb-6">
-						<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
-							<Settings class="w-4 h-4" />
-							Pulse Envelope
-						</h2>
-					</div>
-					<div class="flex justify-around">
+
+				{#if $activeCarriers.some((c: CarrierType) => ['sine', 'square', 'sawtooth', 'triangle'].includes(c))}
+					<div class="mt-4 pt-4 border-t border-gray-800 flex items-center gap-6">
 						<Knob
-							label="Attack"
-							value={$attackTime}
-							min={0.001}
-							max={0.5}
-							step={0.001}
-							unit="s"
-							color="green"
-							onInput={(v) => updateEnvelope({ attack: v })}
-						/>
-						<Knob
-							label="Decay"
-							value={$decayTime}
-							min={0.01}
-							max={1.0}
-							step={0.01}
-							unit="s"
+							label="Frequency"
+							value={$carrierFreq}
+							min={100}
+							max={2000}
+							step={10}
+							unit="Hz"
+							size="lg"
 							color="cyan"
-							onInput={(v) => updateEnvelope({ decay: v })}
+							onInput={(v: number) => setCarrierFreq(v)}
 						/>
+					</div>
+				{/if}
+
+				{#if $activeCarriers.includes('bandlimited')}
+					<div class="mt-4 pt-4 border-t border-gray-800 flex items-center gap-6">
 						<Knob
-							label="Duty Cycle"
-							value={$dutyCycle}
-							min={0.1}
-							max={0.9}
-							step={0.05}
-							onInput={(v) => updateEnvelope({ dutyCycle: v })}
-							color="magenta"
-						/>
-					</div>
-				</div>
-				
-				<!-- Stereo Module -->
-				<div class="bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-6">
-					<div class="flex items-center justify-between mb-6">
-						<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Stereo Field</h2>
-						<label class="flex items-center gap-2 text-xs text-gray-400">
-							<input 
-								type="checkbox" 
-								checked={false}
-								class="rounded border-gray-700 bg-gray-800 text-cyan-400 focus:ring-cyan-400"
-							/>
-							Smooth Pan
-						</label>
-					</div>
-					<div class="flex justify-center gap-8">
-						<Fader
-							label="Left"
-							value={$leftGain}
-							min={0}
-							max={1}
-							step={0.01}
+							label="Cutoff"
+							value={$carrierFreq}
+							min={100}
+							max={5000}
+							step={50}
+							unit="Hz"
+							size="lg"
 							color="cyan"
-							onInput={(v) => setLeftGain(v)}
-						/>
-						<Fader
-							label="Right"
-							value={$rightGain}
-							min={0}
-							max={1}
-							step={0.01}
-							color="magenta"
-							onInput={(v) => setRightGain(v)}
+							onInput={(v: number) => setCarrierFreq(v)}
 						/>
 					</div>
-				</div>
+				{/if}
+
+				{#if $activeCarriers.includes('sample')}
+					<div class="mt-4 pt-4 border-t border-gray-800">
+						<span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Select Sound</span>
+						<div class="grid grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto">
+							{#each soundLibrary as entry}
+								<button
+									class={cn(
+										'text-left px-3 py-2 rounded-lg border transition-all text-sm',
+										$selectedSampleId === entry.id
+											? 'border-emerald-400 bg-emerald-400/10 text-emerald-300'
+											: 'border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+									)}
+									onclick={() => loadSample(entry.id)}
+									disabled={isLoadingSample}
+								>
+									<div class="font-medium">{entry.label}</div>
+									<div class="text-xs text-gray-500">{entry.description}</div>
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
 			</section>
-			
+
 			<!-- Right Sidebar - Visualizer -->
 			<aside class="col-span-3 space-y-4">
 				<div class="bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-4">
 					<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Oscilloscope</h2>
-					<Visualizer 
+					<TraceLayer
 						canvasId="oscilloscope"
 						type="oscilloscope"
 						color="cyan"
@@ -617,10 +527,10 @@
 						class="w-full"
 					/>
 				</div>
-				
+
 				<div class="bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-4">
 					<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Spectrum</h2>
-					<Visualizer 
+					<TraceLayer
 						canvasId="spectrum"
 						type="spectrum"
 						color="magenta"
@@ -629,10 +539,10 @@
 						class="w-full"
 					/>
 				</div>
-				
+
 				<div class="bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-4">
 					<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Output Level</h2>
-					<Visualizer 
+					<TraceLayer
 						canvasId="meter"
 						type="meter"
 						color="green"
@@ -643,7 +553,7 @@
 				</div>
 			</aside>
 		</div>
-		
+
 		<!-- Export Section -->
 		<section class="mt-8 bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-6">
 			<div class="flex items-center justify-between mb-6">
@@ -656,7 +566,7 @@
 				<div class="flex items-center gap-4">
 					<div>
 						<label class="block text-xs text-gray-500 mb-1">Duration</label>
-						<select 
+						<select
 							value={$exportDuration}
 							class="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-cyan-400"
 						>
@@ -669,7 +579,7 @@
 					</div>
 					<div>
 						<label class="block text-xs text-gray-500 mb-1">Bit Depth</label>
-						<select 
+						<select
 							value={$exportBitDepth}
 							class="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-cyan-400"
 						>
@@ -678,11 +588,11 @@
 						</select>
 					</div>
 				</div>
-				<button 
+				<button
 					class={cn(
 						'flex items-center gap-2 px-6 py-3 rounded-lg font-bold transition-all ml-auto',
-						isExporting 
-							? 'bg-gray-700 text-gray-400 cursor-not-allowed' 
+						isExporting
+							? 'bg-gray-700 text-gray-400 cursor-not-allowed'
 							: 'bg-gradient-to-r from-emerald-400 to-green-500 text-[#0d0d0f] shadow-lg shadow-emerald-500/30 hover:scale-105'
 					)}
 					onclick={handleExport}
@@ -693,7 +603,7 @@
 				</button>
 			</div>
 		</section>
-		
+
 		{#if showInfoPanel}
 			<section class="mt-8 bg-gradient-to-br from-[#16161a] to-[#1f1f25] rounded-xl border border-gray-800 p-6">
 				<h2 class="text-lg font-bold text-white mb-4">About Bilateral Isochronic Stimulation</h2>
@@ -705,7 +615,7 @@
 						</p>
 						<p>
 							<strong class="text-fuchsia-400">Bilateral stimulation</strong> alternates sound between left and right ears,
-							a technique used in EMDR therapy to facilitate interhemispheric communication.
+								technique used in EMDR therapy to facilitate interhemispheric communication.
 						</p>
 					</div>
 					<div>
@@ -721,7 +631,7 @@
 			</section>
 		{/if}
 	</main>
-	
+
 	<!-- Footer -->
 	<footer class="border-t border-gray-800 mt-12">
 		<div class="max-w-[1600px] mx-auto px-6 py-6">
@@ -738,23 +648,23 @@
 		-webkit-appearance: none;
 		appearance: none;
 	}
-	
+
 	:global(input[type="range"]::-webkit-slider-thumb) {
 		-webkit-appearance: none;
 		appearance: none;
 		width: 16px;
 		height: 16px;
 		border-radius: 50%;
-		background: linear-gradient(135deg, #22d3ee, #3b82f6);
+		background: linear-gradient(135deg, var(--ns-accent-primary), #3b82f6);
 		cursor: pointer;
 		box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
 	}
-	
+
 	:global(input[type="range"]::-moz-range-thumb) {
 		width: 16px;
 		height: 16px;
 		border-radius: 50%;
-		background: linear-gradient(135deg, #22d3ee, #3b82f6);
+		background: linear-gradient(135deg, var(--ns-accent-primary), #3b82f6);
 		cursor: pointer;
 		border: none;
 		box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
